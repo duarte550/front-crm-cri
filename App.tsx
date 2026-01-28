@@ -25,6 +25,7 @@ const App: React.FC = () => {
   const [newTaskModalState, setNewTaskModalState] = useState<{isOpen: boolean; operationId?: number}>({ isOpen: false });
   const [reviewModalState, setReviewModalState] = useState<{isOpen: boolean; task: Task | null}>({isOpen: false, task: null});
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{message: string; type: 'success' | 'error'} | null>(null);
 
@@ -68,12 +69,8 @@ const App: React.FC = () => {
   };
   
   const handleAddOperation = async (newOperationData: any) => {
+    setIsSyncing(true);
     try {
-        // Fix date shift by ensuring the date string is interpreted in local time or mid-day
-        if (newOperationData.maturityDate) {
-            newOperationData.maturityDate = new Date(newOperationData.maturityDate + 'T12:00:00').toISOString();
-        }
-
         const response = await fetch(`${API_BASE_URL}/api/operations`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -88,15 +85,19 @@ const App: React.FC = () => {
     } catch (error) {
         console.error("Error adding operation:", error);
         showToast('Erro ao adicionar operação.', 'error');
+    } finally {
+        setIsSyncing(false);
     }
   };
 
-  const handleUpdateOperation = async (updatedOperation: Operation) => {
+  const handleUpdateOperation = async (updatedOperation: Operation): Promise<void> => {
     const originalOperations = [...operations];
+    // Atualização otimista da UI
     setOperations(prev => 
       prev.map(op => op.id === updatedOperation.id ? updatedOperation : op)
     );
-
+    
+    setIsSyncing(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/operations/${updatedOperation.id}`, {
         method: 'PUT',
@@ -106,7 +107,7 @@ const App: React.FC = () => {
       });
 
       if (!response.ok) {
-        let errorMsg = 'Falha ao salvar as alterações. Tente novamente.';
+        let errorMsg = 'Falha ao salvar no Databricks.';
         try {
             const errorData = await response.json();
             errorMsg = errorData.error || errorMsg;
@@ -118,19 +119,22 @@ const App: React.FC = () => {
       setOperations(prev => 
         prev.map(op => op.id === returnedOperation.id ? returnedOperation : op)
       );
-      showToast('Alterações salvas com sucesso!', 'success');
+      showToast('Dados sincronizados com sucesso!', 'success');
     } catch (error) {
       console.error("Error updating operation, rolling back UI:", error);
       setOperations(originalOperations);
-      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
-      showToast(`Erro ao salvar: ${errorMessage}`, 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Erro na sincronização.';
+      showToast(`Erro ao sincronizar: ${errorMessage}`, 'error');
+      throw error; // Re-throw to handle in the form
+    } finally {
+        setIsSyncing(false);
     }
   };
 
   const handleDeleteOperation = async (operationId: number) => {
     const originalOperations = [...operations];
     setOperations(prev => prev.filter(op => op.id !== operationId));
-
+    setIsSyncing(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/operations/${operationId}`, {
         method: 'DELETE',
@@ -147,7 +151,9 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Error deleting operation:", error);
       setOperations(originalOperations);
-      showToast('Erro ao deletar a operação. A exclusão foi revertida.', 'error');
+      showToast('Erro ao deletar a operação.', 'error');
+    } finally {
+        setIsSyncing(false);
     }
   };
 
@@ -162,7 +168,7 @@ const App: React.FC = () => {
         }
         return op;
     }));
-
+    setIsSyncing(true);
     try {
         const response = await fetch(`${API_BASE_URL}/api/tasks/delete`, {
             method: 'POST',
@@ -174,12 +180,12 @@ const App: React.FC = () => {
         
         const updatedOperation = await response.json();
         setOperations(prev => prev.map(op => op.id === updatedOperation.id ? updatedOperation : op));
-        showToast('Tarefa deletada com sucesso!', 'success');
-
     } catch (error) {
         console.error("Error deleting task:", error);
         setOperations(originalOperations);
         showToast('Erro ao deletar a tarefa.', 'error');
+    } finally {
+        setIsSyncing(false);
     }
   };
 
@@ -204,7 +210,7 @@ const App: React.FC = () => {
         }
         return op;
     }));
-
+    setIsSyncing(true);
     try {
          const response = await fetch(`${API_BASE_URL}/api/tasks/edit`, {
             method: 'PUT',
@@ -221,12 +227,12 @@ const App: React.FC = () => {
 
         const updatedOperation = await response.json();
         setOperations(prev => prev.map(op => op.id === updatedOperation.id ? updatedOperation : op));
-        showToast('Tarefa editada com sucesso!', 'success');
-
     } catch (error) {
         console.error("Error editing task:", error);
         setOperations(originalOperations);
         showToast('Erro ao editar a tarefa.', 'error');
+    } finally {
+        setIsSyncing(false);
     }
   };
   
@@ -241,97 +247,71 @@ const App: React.FC = () => {
     setNewTaskModalState({ isOpen: false });
   };
 
-  const handleSaveReview = (data: { event: Omit<Event, 'id'>, ratingOp: Rating, ratingGroup: Rating, sentiment: Sentiment }) => {
+  const handleSaveReview = async (data: { event: Omit<Event, 'id'>, ratingOp: Rating, ratingGroup: Rating, sentiment: Sentiment }) => {
       const clickedTask = reviewModalState.task;
       if (!clickedTask) return;
       
       const operation = operations.find(op => op.id === clickedTask.operationId);
       if (!operation) return;
 
-      const eventsToAdd: Event[] = [];
-      const gerencialTaskToComplete = operation.nextReviewGerencialTask;
-      const politicaTaskToComplete = operation.nextReviewPoliticaTask;
+      const actualCompletionDate = data.event.date; // Data da conclusão REAL
+      const originalTaskDate = new Date(clickedTask.dueDate); // Data original (referência)
+      
+      // Mês/Ano original para o título (ex: mar/25)
+      const monthNames = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+      const formattedOriginalDate = `${monthNames[originalTaskDate.getUTCMonth()]}/${originalTaskDate.getUTCFullYear().toString().slice(-2)}`;
 
-      // Fix date shift in event completion
       const baseEventData = {
-          date: new Date(data.event.date + 'T12:00:00').toISOString(),
+          date: actualCompletionDate,
           type: 'Revisão Periódica',
           description: data.event.description,
           registeredBy: data.event.registeredBy,
           nextSteps: data.event.nextSteps,
       };
 
-      if (gerencialTaskToComplete) {
-          eventsToAdd.push({
-              ...baseEventData,
-              id: Date.now() + Math.random(),
-              title: `Conclusão: Revisão Gerencial`,
-              completedTaskId: gerencialTaskToComplete.id,
-          });
-      }
+      const reviewTaskNames = ['Revisão Gerencial', 'Revisão Política'];
+      const updatedRules = operation.taskRules.map(rule => {
+          if (reviewTaskNames.includes(rule.name)) {
+              return { ...rule, startDate: actualCompletionDate };
+          }
+          return rule;
+      });
 
-      if (politicaTaskToComplete && politicaTaskToComplete.id !== gerencialTaskToComplete?.id) {
-          eventsToAdd.push({
-              ...baseEventData,
-              id: Date.now() + Math.random(),
-              title: `Conclusão: Revisão Política`,
-              completedTaskId: politicaTaskToComplete.id,
-          });
-      }
-
-      if (eventsToAdd.length === 0) {
-          eventsToAdd.push({
-              ...baseEventData,
-              id: Date.now() + Math.random(),
-              title: `Revisão Periódica (Manual)`,
-              completedTaskId: clickedTask.id,
-          });
-      }
+      const eventToAdd: Event = {
+          ...baseEventData,
+          id: Date.now() + Math.random(),
+          // PONTO 1: Título seguindo o padrão solicitado
+          title: `Conclusão: Revisão de crédito - ${operation.name} - ${formattedOriginalDate}`,
+          completedTaskId: clickedTask.id,
+      };
 
       const newHistoryEntry = {
           id: Date.now() + 1,
-          date: baseEventData.date,
+          date: actualCompletionDate,
           ratingOperation: data.ratingOp,
           ratingGroup: data.ratingGroup,
           watchlist: operation.watchlist,
           sentiment: data.sentiment,
-          eventId: eventsToAdd[0].id,
+          eventId: eventToAdd.id,
       };
-
-      const tasksToCompleteIds = new Set([gerencialTaskToComplete?.id, politicaTaskToComplete?.id].filter(Boolean));
-      const updatedTasks = operation.tasks.map(t => {
-          if (tasksToCompleteIds.has(t.id)) {
-              return { ...t, status: TaskStatus.COMPLETED };
-          }
-          return t;
-      });
-
-      const pendingAndOverdueTasks = updatedTasks.filter(t => t.status !== TaskStatus.COMPLETED);
-      const nextGerencialTasks = pendingAndOverdueTasks
-          .filter(t => t.ruleName === 'Revisão Gerencial')
-          .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-      const nextPoliticaTasks = pendingAndOverdueTasks
-          .filter(t => t.ruleName === 'Revisão Política')
-          .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-
-      const nextReviewGerencialTask = nextGerencialTasks[0] || null;
-      const nextReviewPoliticaTask = nextPoliticaTasks[0] || null;
 
       const updatedOperation = {
           ...operation,
           ratingOperation: data.ratingOp,
           ratingGroup: data.ratingGroup,
-          events: [...operation.events, ...eventsToAdd],
+          events: [...operation.events, eventToAdd],
           ratingHistory: [...operation.ratingHistory, newHistoryEntry],
-          tasks: updatedTasks,
-          nextReviewGerencialTask,
-          nextReviewPoliticaTask,
-          nextReviewGerencial: nextReviewGerencialTask?.dueDate || null,
-          nextReviewPolitica: nextReviewPoliticaTask?.dueDate || null,
+          taskRules: updatedRules,
+          tasks: operation.tasks.filter(t => !reviewTaskNames.includes(t.ruleName) || t.status === TaskStatus.COMPLETED)
       };
       
-      handleUpdateOperation(updatedOperation);
-      setReviewModalState({ isOpen: false, task: null });
+      // PONTO 2: O modal só fecha após o sucesso do handleUpdateOperation (que é await-ado no child)
+      try {
+        await handleUpdateOperation(updatedOperation);
+        setReviewModalState({ isOpen: false, task: null });
+      } catch (e) {
+        // Erro já tratado pelo toast do handleUpdateOperation
+      }
   };
 
   const renderContent = () => {
@@ -342,7 +322,7 @@ const App: React.FC = () => {
     if (isLoading) {
       return (
         <div className="flex justify-center items-center h-full">
-            <p className="text-xl text-gray-500 animate-pulse">Carregando dados...</p>
+            <p className="text-xl text-gray-500 animate-pulse">Carregando dados do Databricks...</p>
         </div>
       );
     }
@@ -442,9 +422,17 @@ const App: React.FC = () => {
         <header className="bg-white shadow-sm z-10">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
-              <h1 className="text-2xl font-bold text-gray-800">
-                CRM de Crédito Estruturado
-              </h1>
+              <div className="flex items-center gap-4">
+                  <h1 className="text-2xl font-bold text-gray-800">
+                    CRM de Crédito Estruturado
+                  </h1>
+                  {isSyncing && (
+                      <span className="flex items-center gap-2 text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full animate-pulse border border-blue-200 shadow-sm">
+                          <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                          Sincronizando Databricks...
+                      </span>
+                  )}
+              </div>
             </div>
           </div>
         </header>
