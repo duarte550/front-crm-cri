@@ -31,7 +31,8 @@ const ReviewCompletionForm: React.FC<ReviewCompletionFormProps> = ({ task, opera
     setIsSubmitting(true);
 
     const event: Omit<Event, 'id'> = {
-      date: new Date(completionDate).toISOString(),
+      // FIX: Add mid-day time to avoid UTC shift issues
+      date: new Date(completionDate + 'T12:00:00').toISOString(),
       type: 'Revisão Periódica',
       title: `Conclusão: ${task.ruleName}`,
       description,

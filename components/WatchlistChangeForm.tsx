@@ -29,7 +29,8 @@ const WatchlistChangeForm: React.FC<WatchlistChangeFormProps> = ({ operation, on
     e.preventDefault();
     
     const event: Omit<Event, 'id'> = {
-        date: new Date(changeDate).toISOString(),
+        // FIX: Add mid-day time to avoid UTC shift issues
+        date: new Date(changeDate + 'T12:00:00').toISOString(),
         type: 'Mudança de Watchlist',
         title: `Alteração de Watchlist para ${watchlist}`,
         description,

@@ -19,7 +19,6 @@ const defaultMonitoringInitial: DefaultMonitoring = {
   speDfs: false,
 };
 
-// Helper components moved outside of the main component to prevent re-creation on each render.
 const FormRow: React.FC<{children: React.ReactNode}> = ({ children }) => <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">{children}</div>;
 const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => <input {...props} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />;
 const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) => <select {...props} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />;
@@ -64,15 +63,14 @@ const OperationForm: React.FC<OperationFormProps> = ({ onClose, onSave }) => {
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    // The backend is now responsible for business logic, like creating default tasks.
-    // We send the raw data from the form.
     const newOperationData = {
       name,
       area,
       projects: projects.split(',').map((p, i) => ({ id: i, name: p.trim() })).filter(p => p.name),
       operationType,
       guarantees: guarantees.split(',').map((g, i) => ({ id: i, name: g.trim() })).filter(g => g.name),
-      maturityDate: new Date(maturityDate).toISOString(),
+      // FIX: Add mid-day time to ensure date doesn't roll back in UTC conversion
+      maturityDate: maturityDate ? new Date(maturityDate + 'T12:00:00').toISOString() : null,
       responsibleAnalyst,
       reviewFrequency,
       callFrequency,
@@ -82,7 +80,7 @@ const OperationForm: React.FC<OperationFormProps> = ({ onClose, onSave }) => {
       ratingOperation,
       ratingGroup,
       watchlist,
-      covenants: { ltv: null, dscr: null }, // Initial covenants
+      covenants: { ltv: null, dscr: null }, 
     };
     onSave(newOperationData);
     onClose();

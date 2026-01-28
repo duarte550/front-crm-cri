@@ -32,12 +32,12 @@ const WatchlistBadge: React.FC<{ status: WatchlistStatus }> = ({ status }) => {
 
 const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return 'N/A';
-    // The backend provides the full ISO string, we only need the date part
-    const date = new Date(dateString.split('T')[0]);
-    // Adjust for timezone to avoid off-by-one day errors
-    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-    const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
-    return adjustedDate.toLocaleDateString('pt-BR');
+    // FIX: Split ISO string and take only date parts to avoid UTC time shift issues
+    const datePart = dateString.split('T')[0];
+    const [year, month, day] = datePart.split('-').map(Number);
+    // Create date using local parameters (month is 0-indexed)
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('pt-BR');
 };
 
 
@@ -60,7 +60,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
   const confirmDelete = () => {
     if (operationToDelete) {
       onDeleteOperation(operationToDelete.id);
-      setOperationToDelete(null); // Close modal
+      setOperationToDelete(null); 
     }
   };
 
@@ -104,7 +104,6 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
         </Modal>
       )}
 
-      {/* Operations Summary */}
       <div className="bg-white p-6 rounded-lg shadow-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-700">Resumo de Operações</h2>
@@ -193,7 +192,6 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
         </div>
       </div>
 
-      {/* Analyst Calendar */}
       <div className="bg-white p-6 rounded-lg shadow-lg">
         <h2 className="text-xl font-bold text-gray-700 mb-4">Calendário do Analista (Mês Atual)</h2>
         <AnalystCalendar tasks={allTasks} operations={operations} />

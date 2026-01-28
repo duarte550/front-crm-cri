@@ -8,7 +8,6 @@ interface TaskRuleFormProps {
   initialData?: TaskRule;
 }
 
-// Helper component moved outside of the main component to prevent re-creation on each render.
 const Label: React.FC<{htmlFor: string; children: React.ReactNode}> = ({ htmlFor, children }) => <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-1">{children}</label>;
 
 const TaskRuleForm: React.FC<TaskRuleFormProps> = ({ onClose, onSave, initialData }) => {
@@ -22,6 +21,7 @@ const TaskRuleForm: React.FC<TaskRuleFormProps> = ({ onClose, onSave, initialDat
     if (initialData) {
         setName(initialData.name);
         setFrequency(initialData.frequency);
+        // FIX: Extract date part only for initial pre-fill
         setStartDate(new Date(initialData.startDate).toISOString().split('T')[0]);
         setEndDate(new Date(initialData.endDate).toISOString().split('T')[0]);
         setDescription(initialData.description);
@@ -30,11 +30,12 @@ const TaskRuleForm: React.FC<TaskRuleFormProps> = ({ onClose, onSave, initialDat
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // FIX: Add mid-day time to ensure local date is preserved in ISO conversion
     onSave({
       name,
       frequency,
-      startDate: new Date(startDate).toISOString(),
-      endDate: new Date(endDate).toISOString(),
+      startDate: new Date(startDate + 'T12:00:00').toISOString(),
+      endDate: endDate ? new Date(endDate + 'T12:00:00').toISOString() : new Date(startDate + 'T12:00:00').toISOString(),
       description,
     });
     onClose();

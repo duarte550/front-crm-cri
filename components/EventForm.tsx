@@ -11,7 +11,6 @@ interface EventFormProps {
   initialData?: Event | null;
 }
 
-// Helper components moved outside of the main component to prevent re-creation on each render.
 const Label: React.FC<{htmlFor: string; children: React.ReactNode}> = ({ htmlFor, children }) => <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-1">{children}</label>;
 const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
 const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => <select {...props} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -32,6 +31,7 @@ const EventForm: React.FC<EventFormProps> = ({ onClose, onSave, analystName, pre
 
   useEffect(() => {
     if (isEditing) {
+        // FIX: Extract date part only to pre-fill input correctly
         setDate(new Date(initialData.date).toISOString().split('T')[0]);
         setTitle(initialData.title);
         setDescription(initialData.description);
@@ -52,7 +52,8 @@ const EventForm: React.FC<EventFormProps> = ({ onClose, onSave, analystName, pre
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const eventData = {
-      date: new Date(date).toISOString(),
+      // FIX: Add mid-day time to ensure local date is preserved in ISO conversion
+      date: new Date(date + 'T12:00:00').toISOString(),
       type: type === 'Outro' ? customType : type,
       title,
       description,
