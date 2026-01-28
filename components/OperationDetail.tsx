@@ -20,10 +20,10 @@ interface OperationDetailProps {
   onEditTask: (task: Task, updates: { name: string, dueDate: string }) => void;
 }
 
-const InfoCard: React.FC<{ title: string; children: React.ReactNode; }> = ({ title, children }) => (
-    <div className="bg-gray-50 p-3 rounded-md">
-        <h4 className="text-xs text-gray-500 font-semibold uppercase">{title}</h4>
-        <p className="text-gray-800 font-medium">{children}</p>
+const InfoCard: React.FC<{ title: string; children: React.ReactNode; highlight?: boolean }> = ({ title, children, highlight = false }) => (
+    <div className={`${highlight ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'} p-3 rounded-md`}>
+        <h4 className={`text-xs ${highlight ? 'text-blue-600' : 'text-gray-500'} font-semibold uppercase`}>{title}</h4>
+        <p className={`${highlight ? 'text-blue-900 font-bold text-lg' : 'text-gray-800 font-medium'}`}>{children}</p>
     </div>
 );
 
@@ -36,7 +36,7 @@ const getRatingChange = (currentRating: Rating, previousRating: Rating | undefin
 
     if (currentIndex < 0 || previousIndex < 0) return 'neutral';
 
-    if (currentIndex < previousIndex) return 'up'; // Better rating, e.g., index 1 (Baa1) is better than index 2 (Baa3)
+    if (currentIndex < previousIndex) return 'up'; // Better rating
     if (currentIndex > previousIndex) return 'down'; // Worse rating
     return 'neutral';
 };
@@ -149,18 +149,17 @@ const OperationDetail: React.FC<OperationDetailProps> = ({ operation, onUpdateOp
 
     const handleSaveEvent = (eventData: Omit<Event, 'id'>, id?: number) => {
         let updatedOperation;
-        if (id) { // This is an update
+        if (id) {
             const updatedEvents = operation.events.map(e => 
                 e.id === id ? { ...e, ...eventData } : e
             );
             updatedOperation = { ...operation, events: updatedEvents };
-        } else { // This is a new event
+        } else {
             const eventToSave: Partial<Event> = { ...eventData };
             if (taskToComplete) {
                 eventToSave.completedTaskId = taskToComplete.id;
             }
             
-            // Optimistic UI update for task status
             const updatedTasks = taskToComplete
                 ? operation.tasks.map(t => t.id === taskToComplete.id ? { ...t, status: TaskStatus.COMPLETED } : t)
                 : operation.tasks;
@@ -172,8 +171,6 @@ const OperationDetail: React.FC<OperationDetailProps> = ({ operation, onUpdateOp
             };
         }
         onUpdateOperation(updatedOperation);
-
-        // Reset states and close modal
         setTaskToComplete(null);
         setIsEventFormOpen(false);
         setEventToEdit(null);
@@ -237,12 +234,11 @@ ${event.nextSteps || 'Nenhum'}
             date: eventToSave.date,
             ratingOperation: data.ratingOp,
             ratingGroup: data.ratingGroup,
-            watchlist: operation.watchlist, // Use current watchlist status
-            sentiment: data.sentiment, // Use sentiment from form
+            watchlist: operation.watchlist,
+            sentiment: data.sentiment,
             eventId: newEventId,
         };
 
-        // Optimistic UI update for task status
         const updatedTasks = reviewTaskToComplete
             ? operation.tasks.map(t => t.id === reviewTaskToComplete.id ? { ...t, status: TaskStatus.COMPLETED } : t)
             : operation.tasks;
@@ -271,7 +267,7 @@ ${event.nextSteps || 'Nenhum'}
             ratingOperation: data.ratingOp,
             ratingGroup: data.ratingGroup,
             watchlist: data.watchlist,
-            sentiment: data.sentiment, // Use manually selected sentiment
+            sentiment: data.sentiment,
             eventId: newEventId,
         };
 
@@ -448,13 +444,12 @@ ${event.nextSteps || 'Nenhum'}
                         <BellIcon className="w-5 h-5"/> Alterar Watchlist / Rating
                     </button>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <InfoCard title="Área">{operation.area}</InfoCard>
                     <InfoCard title="Projetos">{operation.projects.map(p => p.name).join(', ')}</InfoCard>
                     <InfoCard title="Garantias">{operation.guarantees.map(g => g.name).join(', ')}</InfoCard>
                     <InfoCard title="Segmento">{operation.segmento}</InfoCard>
-                    <InfoCard title="Covenant LTV">{operation.covenants.ltv ?? 'N/A'}</InfoCard>
-                    <InfoCard title="Covenant DSCR">{operation.covenants.dscr ?? 'N/A'}</InfoCard>
+                    <InfoCard title="Vencimento" highlight>{operation.maturityDate ? new Date(operation.maturityDate).toLocaleDateString('pt-BR') : 'N/A'}</InfoCard>
                 </div>
             </div>
 
@@ -561,7 +556,7 @@ ${event.nextSteps || 'Nenhum'}
                     <div className="space-y-3 max-h-96 overflow-y-auto">
                         {sortedHistory.length > 0 ? (
                             sortedHistory.map((entry, index, array) => {
-                                const previousEntry = array[index + 1]; // The one before chronologically
+                                const previousEntry = array[index + 1];
                                 const opRatingChange = getRatingChange(entry.ratingOperation, previousEntry?.ratingOperation);
                                 const groupRatingChange = getRatingChange(entry.ratingGroup, previousEntry?.ratingGroup);
 

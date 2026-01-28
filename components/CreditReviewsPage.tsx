@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Operation, Task, Area, OperationReviewNote } from '../types';
 import { TaskStatus } from '../types';
-import { PencilIcon, CheckCircleIcon } from './icons/Icons';
+import { PencilIcon, CheckCircleIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
 
 interface CreditReviewsPageProps {
   operations: Operation[];
@@ -12,42 +12,83 @@ interface CreditReviewsPageProps {
   showToast: (message: string, type: 'success' | 'error') => void;
 }
 
+type SortField = 'name' | 'maturityDate' | 'nextReviewGerencial' | 'nextReviewPolitica';
+type SortDirection = 'asc' | 'desc';
+
 const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpdateOperation, onCompleteReview, apiUrl, showToast }) => {
   // Filters
   const [analystFilter, setAnalystFilter] = useState('All');
   const [areaFilter, setAreaFilter] = useState<'All' | Area>('All');
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
   
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{field: SortField, direction: SortDirection}>({
+      field: 'name',
+      direction: 'asc'
+  });
+
   // In-line editing state
   const [editingOpId, setEditingOpId] = useState<number | null>(null);
   const [editingNotes, setEditingNotes] = useState('');
 
   const analysts = useMemo(() => ['All', ...new Set(operations.map(op => op.responsibleAnalyst))], [operations]);
 
-  const filteredOperations = useMemo(() => {
-    return operations
-        .filter(op => {
-            if (analystFilter !== 'All' && op.responsibleAnalyst !== analystFilter) return false;
-            if (areaFilter !== 'All' && op.area !== areaFilter) return false;
-            if (dateFilter.start || dateFilter.end) {
-                const gerencialDate = op.nextReviewGerencialTask ? new Date(op.nextReviewGerencialTask.dueDate) : null;
-                const politicaDate = op.nextReviewPoliticaTask ? new Date(op.nextReviewPoliticaTask.dueDate) : null;
-                const startDate = dateFilter.start ? new Date(dateFilter.start) : null;
-                const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-                
-                if(startDate) startDate.setHours(0,0,0,0);
-                if(endDate) endDate.setHours(23,59,59,999);
-                
-                const hasMatchingDate = 
-                    (gerencialDate && (!startDate || gerencialDate >= startDate) && (!endDate || gerencialDate <= endDate)) ||
-                    (politicaDate && (!startDate || politicaDate >= startDate) && (!endDate || politicaDate <= endDate));
+  const handleSort = (field: SortField) => {
+      setSortConfig(prev => ({
+          field,
+          direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+      }));
+  };
 
-                if (!hasMatchingDate) return false;
-            }
-            return true;
-        })
-        .sort((a, b) => a.name.localeCompare(b.name));
-  }, [operations, analystFilter, areaFilter, dateFilter]);
+  const filteredAndSortedOperations = useMemo(() => {
+    let result = operations.filter(op => {
+        if (analystFilter !== 'All' && op.responsibleAnalyst !== analystFilter) return false;
+        if (areaFilter !== 'All' && op.area !== areaFilter) return false;
+        if (dateFilter.start || dateFilter.end) {
+            const gerencialDate = op.nextReviewGerencialTask ? new Date(op.nextReviewGerencialTask.dueDate) : null;
+            const politicaDate = op.nextReviewPoliticaTask ? new Date(op.nextReviewPoliticaTask.dueDate) : null;
+            const startDate = dateFilter.start ? new Date(dateFilter.start) : null;
+            const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
+            
+            if(startDate) startDate.setHours(0,0,0,0);
+            if(endDate) endDate.setHours(23,59,59,999);
+            
+            const hasMatchingDate = 
+                (gerencialDate && (!startDate || gerencialDate >= startDate) && (!endDate || gerencialDate <= endDate)) ||
+                (politicaDate && (!startDate || politicaDate >= startDate) && (!endDate || politicaDate <= endDate));
+
+            if (!hasMatchingDate) return false;
+        }
+        return true;
+    });
+
+    // Sort the result
+    result.sort((a, b) => {
+        let valA: any = a[sortConfig.field as keyof Operation];
+        let valB: any = b[sortConfig.field as keyof Operation];
+
+        // Handle nested task dates for sorting
+        if (sortConfig.field === 'nextReviewGerencial') {
+            valA = a.nextReviewGerencialTask ? new Date(a.nextReviewGerencialTask.dueDate).getTime() : 0;
+            valB = b.nextReviewGerencialTask ? new Date(b.nextReviewGerencialTask.dueDate).getTime() : 0;
+        } else if (sortConfig.field === 'nextReviewPolitica') {
+            valA = a.nextReviewPoliticaTask ? new Date(a.nextReviewPoliticaTask.dueDate).getTime() : 0;
+            valB = b.nextReviewPoliticaTask ? new Date(b.nextReviewPoliticaTask.dueDate).getTime() : 0;
+        } else if (sortConfig.field === 'maturityDate') {
+            valA = a.maturityDate ? new Date(a.maturityDate).getTime() : 0;
+            valB = b.maturityDate ? new Date(b.maturityDate).getTime() : 0;
+        } else {
+            valA = (valA || "").toString().toLowerCase();
+            valB = (valB || "").toString().toLowerCase();
+        }
+
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    return result;
+  }, [operations, analystFilter, areaFilter, dateFilter, sortConfig]);
 
   const handleStartEditing = (op: Operation) => {
       setEditingOpId(op.id);
@@ -121,6 +162,13 @@ const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpd
     );
   };
 
+  const SortIcon: React.FC<{ field: SortField }> = ({ field }) => {
+      if (sortConfig.field !== field) return <div className="w-4 h-4 text-gray-300 ml-1 inline-block"><ArrowUpIcon className="opacity-30" /></div>;
+      return sortConfig.direction === 'asc' 
+          ? <ArrowUpIcon className="w-4 h-4 text-blue-600 ml-1 inline-block" /> 
+          : <ArrowDownIcon className="w-4 h-4 text-blue-600 ml-1 inline-block" />;
+  };
+
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">Painel de Revisões de Crédito</h2>
@@ -141,11 +189,11 @@ const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpd
                 </select>
             </div>
             <div>
-                <label htmlFor="start-date-filter" className="text-sm font-medium text-gray-700">Vencimento De</label>
+                <label htmlFor="start-date-filter" className="text-sm font-medium text-gray-700">Venc. Revisão De</label>
                 <input type="date" id="start-date-filter" value={dateFilter.start} onChange={e => setDateFilter(prev => ({...prev, start: e.target.value}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"/>
             </div>
              <div>
-                <label htmlFor="end-date-filter" className="text-sm font-medium text-gray-700">Vencimento Até</label>
+                <label htmlFor="end-date-filter" className="text-sm font-medium text-gray-700">Venc. Revisão Até</label>
                 <input type="date" id="end-date-filter" value={dateFilter.end} onChange={e => setDateFilter(prev => ({...prev, end: e.target.value}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"/>
             </div>
         </div>
@@ -154,16 +202,37 @@ const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpd
             <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                     <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Operação</th>
+                        <th 
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => handleSort('name')}
+                        >
+                            Operação <SortIcon field="name" />
+                        </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Analista</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Próx. Rev. Gerencial</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Próx. Rev. Política</th>
+                        <th 
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-blue-600 cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => handleSort('maturityDate')}
+                        >
+                            Venc. Op. <SortIcon field="maturityDate" />
+                        </th>
+                        <th 
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => handleSort('nextReviewGerencial')}
+                        >
+                            Próx. Rev. Gerencial <SortIcon field="nextReviewGerencial" />
+                        </th>
+                        <th 
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => handleSort('nextReviewPolitica')}
+                        >
+                            Próx. Rev. Política <SortIcon field="nextReviewPolitica" />
+                        </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">Observações</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">Observações</th>
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredOperations.map(op => {
+                    {filteredAndSortedOperations.map(op => {
                         const gerencialTask = op.nextReviewGerencialTask;
                         const politicaTask = op.nextReviewPoliticaTask;
                         let taskForCompletion: Task | null = null;
@@ -178,6 +247,9 @@ const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpd
                             <tr key={op.id} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{op.name}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{op.responsibleAnalyst}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-700">
+                                    {op.maturityDate ? new Date(op.maturityDate).toLocaleDateString('pt-BR') : 'N/A'}
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     <ReviewInfoCell task={gerencialTask} />
                                 </td>
@@ -188,7 +260,7 @@ const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpd
                                     {taskForCompletion ? (
                                         <button
                                             onClick={() => onCompleteReview(taskForCompletion!)}
-                                            className="flex items-center justify-center gap-1.5 w-full max-w-[120px] px-2 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-xs"
+                                            className="flex items-center justify-center gap-1.5 w-full max-w-[120px] px-2 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-xs shadow-sm active:scale-95 transition-transform"
                                         >
                                             <CheckCircleIcon className="w-4 h-4" /> Completar
                                         </button>
@@ -206,14 +278,14 @@ const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpd
                                                 rows={3}
                                             />
                                             <div className="flex gap-2 mt-1">
-                                                <button onClick={handleSaveNote} className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">Salvar</button>
-                                                <button onClick={handleCancelEditing} className="text-xs bg-gray-200 px-2 py-1 rounded hover:bg-gray-300">Cancelar</button>
+                                                <button onClick={handleSaveNote} className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 shadow-sm">Salvar</button>
+                                                <button onClick={handleCancelEditing} className="text-xs bg-gray-200 px-2 py-1 rounded hover:bg-gray-300 shadow-sm">Cancelar</button>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="flex items-start justify-between">
-                                            <p className="whitespace-pre-wrap flex-1">{op.notes}</p>
-                                            <button onClick={() => handleStartEditing(op)} className="ml-2 text-gray-400 hover:text-blue-600 flex-shrink-0">
+                                            <p className="whitespace-pre-wrap flex-1 italic text-gray-500">{op.notes || "Sem observações..."}</p>
+                                            <button onClick={() => handleStartEditing(op)} className="ml-2 text-gray-400 hover:text-blue-600 flex-shrink-0 transition-colors">
                                                 <PencilIcon className="w-4 h-4" />
                                             </button>
                                         </div>
@@ -224,7 +296,7 @@ const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpd
                     })}
                 </tbody>
             </table>
-            {filteredOperations.length === 0 && (
+            {filteredAndSortedOperations.length === 0 && (
                  <div className="text-center py-8 text-gray-500">
                     Nenhuma operação encontrada para os filtros selecionados.
                 </div>

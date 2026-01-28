@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Event } from '../types';
 import Modal from './Modal';
+import { Label, Input, Select, Textarea, FormRow } from './UI';
 
 interface EventFormProps {
   onClose: () => void;
@@ -10,12 +11,6 @@ interface EventFormProps {
   prefilledTitle?: string;
   initialData?: Event | null;
 }
-
-const Label: React.FC<{htmlFor: string; children: React.ReactNode}> = ({ htmlFor, children }) => <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-1">{children}</label>;
-const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => <select {...props} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-const Textarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
 
 const EventForm: React.FC<EventFormProps> = ({ onClose, onSave, analystName, prefilledTitle = '', initialData = null }) => {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -31,7 +26,6 @@ const EventForm: React.FC<EventFormProps> = ({ onClose, onSave, analystName, pre
 
   useEffect(() => {
     if (isEditing) {
-        // FIX: Extract date part only to pre-fill input correctly
         setDate(new Date(initialData.date).toISOString().split('T')[0]);
         setTitle(initialData.title);
         setDescription(initialData.description);
@@ -52,7 +46,6 @@ const EventForm: React.FC<EventFormProps> = ({ onClose, onSave, analystName, pre
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const eventData = {
-      // FIX: Add mid-day time to ensure local date is preserved in ISO conversion
       date: new Date(date + 'T12:00:00').toISOString(),
       type: type === 'Outro' ? customType : type,
       title,
@@ -66,7 +59,7 @@ const EventForm: React.FC<EventFormProps> = ({ onClose, onSave, analystName, pre
   return (
     <Modal isOpen={true} onClose={onClose} title={isEditing ? "Editar Evento" : "Adicionar Novo Evento"}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FormRow>
             <div>
                 <Label htmlFor="date">Data</Label>
                 <Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} required />
@@ -75,22 +68,22 @@ const EventForm: React.FC<EventFormProps> = ({ onClose, onSave, analystName, pre
                 <Label htmlFor="registeredBy">Analista Responsável</Label>
                 <Input id="registeredBy" type="text" value={registeredBy} onChange={e => setRegisteredBy(e.target.value)} required />
             </div>
-        </div>
+        </FormRow>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FormRow>
              <div>
                 <Label htmlFor="type">Tipo de Evento</Label>
                  <Select id="type" value={type} onChange={e => setType(e.target.value)}>
                     {eventTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </Select>
             </div>
-            {type === 'Outro' && (
+            {type === 'Outro' ? (
                 <div>
                     <Label htmlFor="customType">Especifique o Tipo</Label>
                     <Input id="customType" type="text" value={customType} onChange={e => setCustomType(e.target.value)} required />
                 </div>
-            )}
-        </div>
+            ) : <div />}
+        </FormRow>
         
         <div>
             <Label htmlFor="title">Título</Label>

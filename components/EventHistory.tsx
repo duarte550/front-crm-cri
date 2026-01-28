@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import type { Event } from '../types';
-import { PlusCircleIcon, PencilIcon, DownloadIcon } from './icons/Icons';
+import { PlusCircleIcon, PencilIcon, DownloadIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
 
 interface EventHistoryProps {
   events: Event[];
@@ -38,11 +38,21 @@ const EventHistory: React.FC<EventHistoryProps> = ({
   onToggleExpand,
   eventRefs,
 }) => {
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const sortedEvents = useMemo(() => {
+      return [...events].sort((a, b) => {
+          const dateA = new Date(a.date).getTime();
+          const dateB = new Date(b.date).getTime();
+          return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+      });
+  }, [events, sortDirection]);
+
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-bold text-gray-700">Histórico de Eventos</h3>
-        <button onClick={onAddEvent} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <button onClick={onAddEvent} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
           <PlusCircleIcon className="w-5 h-5" /> Adicionar Evento
         </button>
       </div>
@@ -73,12 +83,23 @@ const EventHistory: React.FC<EventHistoryProps> = ({
       </div>
 
       <div className="space-y-2 max-h-96 overflow-y-auto">
-        {events.map(event => (
+        <div className="grid grid-cols-5 gap-4 px-4 py-2 bg-gray-100 rounded-t-lg text-xs font-bold text-gray-500 uppercase">
+            <div 
+              className="flex items-center gap-1 cursor-pointer hover:text-blue-600 transition-colors"
+              onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+            >
+                Data {sortDirection === 'asc' ? <ArrowUpIcon className="w-3 h-3" /> : <ArrowDownIcon className="w-3 h-3" />}
+            </div>
+            <div>Tipo</div>
+            <div className="col-span-2">Título</div>
+            <div className="text-right">Ações</div>
+        </div>
+        {sortedEvents.map(event => (
           <div key={event.id} ref={el => { if (el) eventRefs.current[event.id] = el; }} className={`border border-gray-200 rounded-lg p-4 transition-all duration-300 ${expandedEventId === event.id ? 'bg-blue-50 ring-2 ring-blue-300' : ''}`}>
             <div className="grid grid-cols-5 gap-4 items-center">
               <div className="text-sm font-medium text-gray-600">{new Date(event.date).toLocaleDateString('pt-BR')}</div>
               <div className="text-sm text-gray-800"><span className="font-semibold">{event.type}</span></div>
-              <div className="col-span-2 text-sm text-gray-800">{event.title}</div>
+              <div className="col-span-2 text-sm text-gray-800 font-medium">{event.title}</div>
               <div className="text-right flex items-center justify-end gap-2">
                 <button onClick={() => onEditEvent(event)} className="text-gray-400 hover:text-blue-600" title="Editar Evento">
                   <PencilIcon className="w-5 h-5" />
@@ -86,22 +107,22 @@ const EventHistory: React.FC<EventHistoryProps> = ({
                 <button onClick={() => onDownloadEvent(event)} className="text-gray-400 hover:text-green-600" title="Baixar Evento como .txt">
                   <DownloadIcon className="w-5 h-5" />
                 </button>
-                <button onClick={() => onToggleExpand(expandedEventId === event.id ? null : event.id)} className="text-blue-600 hover:text-blue-800 text-sm font-semibold">
+                <button onClick={() => onToggleExpand(expandedEventId === event.id ? null : event.id)} className="text-blue-600 hover:text-blue-800 text-sm font-semibold ml-2">
                   {expandedEventId === event.id ? 'Menos' : 'Mais'}
                 </button>
               </div>
             </div>
             {expandedEventId === event.id && (
-              <div className="mt-4 pt-4 border-t border-gray-200 space-y-3 text-sm text-gray-700">
+              <div className="mt-4 pt-4 border-t border-gray-200 space-y-3 text-sm text-gray-700 animate-in fade-in slide-in-from-top-2 duration-300">
                 <p><strong className="font-semibold text-gray-600">Descrição:</strong> {event.description}</p>
                 <p><strong className="font-semibold text-gray-600">Registrado por:</strong> {event.registeredBy}</p>
-                <p><strong className="font-semibold text-gray-600">Próximos Passos:</strong> {event.nextSteps}</p>
-                {event.completedTaskId && <p className="text-xs text-gray-500 italic pt-2">Este evento concluiu a tarefa ID: {event.completedTaskId}</p>}
+                <p><strong className="font-semibold text-gray-600">Próximos Passos:</strong> {event.nextSteps || 'Nenhum'}</p>
+                {event.completedTaskId && <p className="text-xs text-gray-400 italic pt-2 border-t mt-2">ID Tarefa Concluída: {event.completedTaskId}</p>}
               </div>
             )}
           </div>
         ))}
-        {events.length === 0 && <p className="text-center text-gray-500 py-4">Nenhum evento encontrado para os filtros selecionados.</p>}
+        {sortedEvents.length === 0 && <p className="text-center text-gray-500 py-12">Nenhum evento encontrado para os filtros selecionados.</p>}
       </div>
     </div>
   );

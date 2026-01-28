@@ -4,7 +4,7 @@ import type { Operation, Task, Event, Rating, Sentiment, RatingHistoryEntry, Are
 import { TaskStatus } from '../types';
 import EventForm from './EventForm';
 import ReviewCompletionForm from './ReviewCompletionForm';
-import { CheckCircleIcon, PlusCircleIcon, PencilIcon, TrashIcon } from './icons/Icons';
+import { CheckCircleIcon, PlusCircleIcon, PencilIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
 import Modal from './Modal';
 import AdHocTaskForm from './AdHocTaskForm';
 
@@ -24,6 +24,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
   const [selectedOperationId, setSelectedOperationId] = useState('Todos');
   const [areaFilter, setAreaFilter] = useState<'All' | Area>('All');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'completed'
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
   const [isEventFormOpen, setIsEventFormOpen] = useState(false);
@@ -52,17 +53,23 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
 
 
   const pendingTasksInMonth = useMemo(() => {
-    return filteredTasks
+    const tasks = filteredTasks
       .filter(task => task.status !== TaskStatus.COMPLETED)
       .filter(task => {
         const dueDate = new Date(task.dueDate);
         return dueDate.getFullYear() === currentMonth.getFullYear() && dueDate.getMonth() === currentMonth.getMonth();
-      })
-      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-  }, [filteredTasks, currentMonth]);
+      });
+
+      tasks.sort((a, b) => {
+          const dateA = new Date(a.dueDate).getTime();
+          const dateB = new Date(b.dueDate).getTime();
+          return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+      });
+      return tasks;
+  }, [filteredTasks, currentMonth, sortDirection]);
 
   const completedTasksInMonth = useMemo(() => {
-     return filteredTasks
+     const tasks = filteredTasks
       .filter(task => task.status === TaskStatus.COMPLETED)
       .filter(task => {
         const op = operationsById.get(task.operationId);
@@ -70,13 +77,17 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
         if (!completionEvent) return false;
         const completionDate = new Date(completionEvent.date);
         return completionDate.getFullYear() === currentMonth.getFullYear() && completionDate.getMonth() === currentMonth.getMonth();
-      })
-      .sort((a, b) => {
+      });
+
+      tasks.sort((a, b) => {
           const eventA = operationsById.get(a.operationId)?.events.find(e => e.completedTaskId === a.id);
           const eventB = operationsById.get(b.operationId)?.events.find(e => e.completedTaskId === b.id);
-          return (eventB ? new Date(eventB.date).getTime() : 0) - (eventA ? new Date(eventA.date).getTime() : 0);
+          const dateA = eventA ? new Date(eventA.date).getTime() : 0;
+          const dateB = eventB ? new Date(eventB.date).getTime() : 0;
+          return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
       });
-  }, [filteredTasks, currentMonth, operationsById]);
+      return tasks;
+  }, [filteredTasks, currentMonth, operationsById, sortDirection]);
 
   const changeMonth = (offset: number) => {
     setCurrentMonth(prev => {
@@ -270,8 +281,8 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-gray-200 mb-4">
+        {/* Tabs and Sort */}
+        <div className="flex justify-between items-center border-b border-gray-200 mb-4">
             <nav className="-mb-px flex space-x-6" aria-label="Tabs">
                 <button
                     onClick={() => setActiveTab('pending')}
@@ -279,7 +290,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
                         activeTab === 'pending'
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
+                    } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-all`}
                 >
                     Tarefas Pendentes ({pendingTasksInMonth.length})
                 </button>
@@ -289,11 +300,21 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
                         activeTab === 'completed'
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
+                    } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-all`}
                 >
                     Tarefas Concluídas ({completedTasksInMonth.length})
                 </button>
             </nav>
+            <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-gray-400 uppercase">Vencimento:</span>
+                <button 
+                  onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="p-1.5 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors flex items-center gap-1 shadow-sm border border-blue-100"
+                >
+                    {sortDirection === 'asc' ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />}
+                    <span className="text-xs font-bold">{sortDirection === 'asc' ? 'ASC' : 'DESC'}</span>
+                </button>
+            </div>
         </div>
         
         {/* Task List */}

@@ -4,7 +4,7 @@ import type { Operation, Area } from '../types';
 import { WatchlistStatus } from '../types';
 import OperationForm from './OperationForm';
 import AnalystCalendar from './AnalystCalendar';
-import { PlusCircleIcon, EyeIcon, TrashIcon } from './icons/Icons';
+import { PlusCircleIcon, EyeIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
 import Modal from './Modal';
 
 interface OverviewDashboardProps {
@@ -14,6 +14,9 @@ interface OverviewDashboardProps {
   onOpenNewTaskModal: (operationId: number) => void;
   onDeleteOperation: (id: number) => void;
 }
+
+type SortField = 'name' | 'maturityDate' | 'nextReviewGerencial' | 'nextReviewPolitica';
+type SortDirection = 'asc' | 'desc';
 
 const WatchlistBadge: React.FC<{ status: WatchlistStatus }> = ({ status }) => {
   const colorClasses = {
@@ -31,13 +34,22 @@ const WatchlistBadge: React.FC<{ status: WatchlistStatus }> = ({ status }) => {
 };
 
 const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return 'N/A';
-    // FIX: Split ISO string and take only date parts to avoid UTC time shift issues
-    const datePart = dateString.split('T')[0];
-    const [year, month, day] = datePart.split('-').map(Number);
-    // Create date using local parameters (month is 0-indexed)
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('pt-BR');
+    if (!dateString || dateString === 'N/A') return 'N/A';
+    try {
+        const datePart = dateString.split('T')[0];
+        const parts = datePart.split('-');
+        if (parts.length !== 3) return 'Data Inválida';
+        
+        const [year, month, day] = parts.map(Number);
+        const date = new Date(year, month - 1, day);
+        
+        if (isNaN(date.getTime())) return 'Data Inválida';
+        
+        return date.toLocaleDateString('pt-BR');
+    } catch (e) {
+        console.error("Erro ao formatar data:", dateString, e);
+        return 'Erro na Data';
+    }
 };
 
 
@@ -46,12 +58,46 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
   const [operationToDelete, setOperationToDelete] = useState<Operation | null>(null);
   const [areaFilter, setAreaFilter] = useState<'All' | Area>('All');
   
+  // Sorting State
+  const [sortConfig, setSortConfig] = useState<{field: SortField, direction: SortDirection}>({
+      field: 'name',
+      direction: 'asc'
+  });
+
+  const handleSort = (field: SortField) => {
+    setSortConfig(prev => ({
+      field,
+      direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
   const filteredOperations = useMemo(() => {
-    if (areaFilter === 'All') {
-      return operations;
+    let result = [...operations];
+    
+    if (areaFilter !== 'All') {
+      result = result.filter(op => op.area === areaFilter);
     }
-    return operations.filter(op => op.area === areaFilter);
-  }, [operations, areaFilter]);
+
+    result.sort((a, b) => {
+        let valA: any = a[sortConfig.field as keyof Operation];
+        let valB: any = b[sortConfig.field as keyof Operation];
+
+        // Normalização para datas
+        if (['maturityDate', 'nextReviewGerencial', 'nextReviewPolitica'].includes(sortConfig.field)) {
+            valA = valA ? new Date(valA).getTime() : 0;
+            valB = valB ? new Date(valB).getTime() : 0;
+        } else {
+            valA = (valA || "").toString().toLowerCase();
+            valB = (valB || "").toString().toLowerCase();
+        }
+
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    return result;
+  }, [operations, areaFilter, sortConfig]);
 
   const allTasks = React.useMemo(() => {
       return operations.flatMap(op => op.tasks || []);
@@ -62,6 +108,13 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
       onDeleteOperation(operationToDelete.id);
       setOperationToDelete(null); 
     }
+  };
+
+  const SortIcon: React.FC<{ field: SortField }> = ({ field }) => {
+      if (sortConfig.field !== field) return <div className="w-4 h-4 text-gray-300 ml-1 inline-block opacity-20"><ArrowUpIcon /></div>;
+      return sortConfig.direction === 'asc' 
+          ? <ArrowUpIcon className="w-4 h-4 text-blue-600 ml-1 inline-block" /> 
+          : <ArrowDownIcon className="w-4 h-4 text-blue-600 ml-1 inline-block" />;
   };
 
   return (
@@ -134,12 +187,37 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome da Operação</th>
+                <th 
+                  scope="col" 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('name')}
+                >
+                  Nome da Operação <SortIcon field="name" />
+                </th>
+                <th 
+                  scope="col" 
+                  className="px-6 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('maturityDate')}
+                >
+                  Vencimento <SortIcon field="maturityDate" />
+                </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating Op.</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Watchlist</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Próx. Rev. Gerencial</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Próx. Rev. Política</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarefas Atrasadas</th>
+                <th 
+                  scope="col" 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('nextReviewGerencial')}
+                >
+                  Próx. Rev. Gerencial <SortIcon field="nextReviewGerencial" />
+                </th>
+                <th 
+                  scope="col" 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('nextReviewPolitica')}
+                >
+                  Próx. Rev. Política <SortIcon field="nextReviewPolitica" />
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Tarefas Atrasadas</th>
                 <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
@@ -153,19 +231,20 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
                 return (
                   <tr key={op.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{op.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-700">{formatDate(op.maturityDate)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{op.ratingOperation}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><WatchlistBadge status={currentStatus} /></td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(op.nextReviewGerencial)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(op.nextReviewPolitica)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                      <span className={op.overdueCount > 0 ? 'text-red-600 font-bold' : 'text-green-600'}>
+                      <span className={op.overdueCount > 0 ? 'bg-red-100 text-red-700 px-2 py-1 rounded-full font-bold' : 'text-green-600'}>
                         {op.overdueCount}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center justify-center gap-4">
-                          <button onClick={() => onOpenNewTaskModal(op.id)} className="text-gray-600 hover:text-blue-600 font-semibold">
-                              Adicionar Tarefa
+                          <button onClick={() => onOpenNewTaskModal(op.id)} className="text-gray-600 hover:text-blue-600 font-semibold text-xs bg-gray-100 px-2 py-1 rounded">
+                              + Tarefa
                           </button>
                           <button onClick={() => onSelectOperation(op.id)} className="flex items-center gap-1 text-blue-600 hover:text-blue-900 font-semibold">
                               <EyeIcon className="w-5 h-5" /> Detalhes

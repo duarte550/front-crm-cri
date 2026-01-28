@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import type { DefaultMonitoring, Rating, Area } from '../types';
 import { WatchlistStatus, ratingOptions, segmentoOptions, areaOptions } from '../types';
 import Modal from './Modal';
+import { Label, Input, Select, FormRow } from './UI';
 
 interface OperationFormProps {
   onClose: () => void;
@@ -18,11 +19,6 @@ const defaultMonitoringInitial: DefaultMonitoring = {
   monthlyCommercialInfo: false,
   speDfs: false,
 };
-
-const FormRow: React.FC<{children: React.ReactNode}> = ({ children }) => <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">{children}</div>;
-const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => <input {...props} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />;
-const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) => <select {...props} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />;
-const Label: React.FC<{htmlFor: string; children: React.ReactNode}> = ({ htmlFor, children }) => <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-1">{children}</label>;
 
 interface CheckboxProps {
     name: keyof DefaultMonitoring;
@@ -69,7 +65,6 @@ const OperationForm: React.FC<OperationFormProps> = ({ onClose, onSave }) => {
       projects: projects.split(',').map((p, i) => ({ id: i, name: p.trim() })).filter(p => p.name),
       operationType,
       guarantees: guarantees.split(',').map((g, i) => ({ id: i, name: g.trim() })).filter(g => g.name),
-      // FIX: Add mid-day time to ensure date doesn't roll back in UTC conversion
       maturityDate: maturityDate ? new Date(maturityDate + 'T12:00:00').toISOString() : null,
       responsibleAnalyst,
       reviewFrequency,
