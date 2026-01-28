@@ -34,7 +34,7 @@ const App: React.FC = () => {
 
   const fetchOperations = useCallback(async () => {
     setIsLoading(true);
-    setError(null); // Clear previous errors on a new attempt
+    setError(null); 
     try {
       const response = await fetch(`${API_BASE_URL}/api/operations`, { credentials: 'include' });
       if (!response.ok) {
@@ -59,8 +59,6 @@ const App: React.FC = () => {
   }, [fetchOperations]);
 
   const allTasks = useMemo(() => {
-    // Business logic for task generation is now on the backend.
-    // The frontend just consumes the 'tasks' array.
     return operations.flatMap(op => op.tasks || []);
   }, [operations]);
 
@@ -71,6 +69,11 @@ const App: React.FC = () => {
   
   const handleAddOperation = async (newOperationData: any) => {
     try {
+        // Fix date shift by ensuring the date string is interpreted in local time or mid-day
+        if (newOperationData.maturityDate) {
+            newOperationData.maturityDate = new Date(newOperationData.maturityDate + 'T12:00:00').toISOString();
+        }
+
         const response = await fetch(`${API_BASE_URL}/api/operations`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -90,8 +93,6 @@ const App: React.FC = () => {
 
   const handleUpdateOperation = async (updatedOperation: Operation) => {
     const originalOperations = [...operations];
-    
-    // Optimistic UI Update: Update the state immediately for a responsive feel.
     setOperations(prev => 
       prev.map(op => op.id === updatedOperation.id ? updatedOperation : op)
     );
@@ -109,7 +110,7 @@ const App: React.FC = () => {
         try {
             const errorData = await response.json();
             errorMsg = errorData.error || errorMsg;
-        } catch(e) { /* Ignore if body isn't json */ }
+        } catch(e) { }
         throw new Error(errorMsg);
       }
       
@@ -128,7 +129,6 @@ const App: React.FC = () => {
 
   const handleDeleteOperation = async (operationId: number) => {
     const originalOperations = [...operations];
-    // Optimistic UI delete
     setOperations(prev => prev.filter(op => op.id !== operationId));
 
     try {
@@ -146,15 +146,13 @@ const App: React.FC = () => {
       showToast('Operação deletada com sucesso!', 'success');
     } catch (error) {
       console.error("Error deleting operation:", error);
-      setOperations(originalOperations); // Rollback on error
+      setOperations(originalOperations);
       showToast('Erro ao deletar a operação. A exclusão foi revertida.', 'error');
     }
   };
 
   const handleDeleteTask = async (task: Task) => {
     const originalOperations = [...operations];
-
-    // Optimistic UI: Remove task from the specific operation
     setOperations(prevOps => prevOps.map(op => {
         if (op.id === task.operationId) {
             return {
@@ -175,37 +173,32 @@ const App: React.FC = () => {
         if (!response.ok) throw new Error('Falha ao deletar a tarefa');
         
         const updatedOperation = await response.json();
-        // Sync state with the server's response
         setOperations(prev => prev.map(op => op.id === updatedOperation.id ? updatedOperation : op));
         showToast('Tarefa deletada com sucesso!', 'success');
 
     } catch (error) {
         console.error("Error deleting task:", error);
-        setOperations(originalOperations); // Rollback
+        setOperations(originalOperations);
         showToast('Erro ao deletar a tarefa.', 'error');
     }
   };
 
   const handleEditTask = async (task: Task, updates: { name: string, dueDate: string }) => {
     const originalOperations = [...operations];
-
-     // Optimistic UI:
     setOperations(prevOps => prevOps.map(op => {
         if (op.id === task.operationId) {
-            // 1. Remove the old task
             const filteredTasks = op.tasks.filter(t => t.id !== task.id);
-            // 2. Create a new ad-hoc rule for the edited task
             const newAdHocRule: TaskRule = {
-                id: Date.now(), // Temporary client-side ID
+                id: Date.now(),
                 name: updates.name,
                 frequency: 'Pontual',
-                startDate: new Date(updates.dueDate).toISOString(),
-                endDate: new Date(updates.dueDate).toISOString(),
+                startDate: new Date(updates.dueDate + 'T12:00:00').toISOString(),
+                endDate: new Date(updates.dueDate + 'T12:00:00').toISOString(),
                 description: `Tarefa editada a partir da tarefa original: ${task.ruleName} (ID: ${task.id})`,
             };
             return {
                 ...op,
-                tasks: filteredTasks, // Temporarily remove, will be replaced by backend's full list
+                tasks: filteredTasks,
                 taskRules: [...op.taskRules, newAdHocRule]
             };
         }
@@ -232,7 +225,7 @@ const App: React.FC = () => {
 
     } catch (error) {
         console.error("Error editing task:", error);
-        setOperations(originalOperations); // Rollback
+        setOperations(originalOperations);
         showToast('Erro ao editar a tarefa.', 'error');
     }
   };
@@ -259,8 +252,9 @@ const App: React.FC = () => {
       const gerencialTaskToComplete = operation.nextReviewGerencialTask;
       const politicaTaskToComplete = operation.nextReviewPoliticaTask;
 
+      // Fix date shift in event completion
       const baseEventData = {
-          date: new Date(data.event.date).toISOString(),
+          date: new Date(data.event.date + 'T12:00:00').toISOString(),
           type: 'Revisão Periódica',
           description: data.event.description,
           registeredBy: data.event.registeredBy,
@@ -285,7 +279,6 @@ const App: React.FC = () => {
           });
       }
 
-      // Fallback in case no tasks are found, to ensure the event is still logged.
       if (eventsToAdd.length === 0) {
           eventsToAdd.push({
               ...baseEventData,
@@ -302,10 +295,9 @@ const App: React.FC = () => {
           ratingGroup: data.ratingGroup,
           watchlist: operation.watchlist,
           sentiment: data.sentiment,
-          eventId: eventsToAdd[0].id, // Link to the first created event
+          eventId: eventsToAdd[0].id,
       };
 
-      // For optimistic UI update: Mark tasks as completed
       const tasksToCompleteIds = new Set([gerencialTaskToComplete?.id, politicaTaskToComplete?.id].filter(Boolean));
       const updatedTasks = operation.tasks.map(t => {
           if (tasksToCompleteIds.has(t.id)) {
@@ -314,7 +306,6 @@ const App: React.FC = () => {
           return t;
       });
 
-      // Replicate backend logic for finding next tasks for a complete optimistic update
       const pendingAndOverdueTasks = updatedTasks.filter(t => t.status !== TaskStatus.COMPLETED);
       const nextGerencialTasks = pendingAndOverdueTasks
           .filter(t => t.ruleName === 'Revisão Gerencial')
@@ -333,7 +324,6 @@ const App: React.FC = () => {
           events: [...operation.events, ...eventsToAdd],
           ratingHistory: [...operation.ratingHistory, newHistoryEntry],
           tasks: updatedTasks,
-          // Add the newly calculated next tasks for the UI to update instantly
           nextReviewGerencialTask,
           nextReviewPoliticaTask,
           nextReviewGerencial: nextReviewGerencialTask?.dueDate || null,
@@ -343,7 +333,6 @@ const App: React.FC = () => {
       handleUpdateOperation(updatedOperation);
       setReviewModalState({ isOpen: false, task: null });
   };
-
 
   const renderContent = () => {
     if (error) {
@@ -362,7 +351,6 @@ const App: React.FC = () => {
         case Page.OVERVIEW:
             return (
                 <>
-                    {/* The overdue highlight is now only shown on the overview page */}
                     <OverdueOperationsHighlight
                         operations={operations}
                         onNavigate={handleNavigate}
