@@ -500,11 +500,14 @@ def sync_operation_rules():
     try:
         with conn.cursor() as cursor:
             # Busca operações que não possuem NENHUMA regra de tarefa
+            # Optimized query using LEFT JOIN and LIMIT to avoid timeouts
             cursor.execute("""
-                SELECT id, name, rating_group, review_frequency, call_frequency, df_frequency, 
-                       maturity_date, monitoring_news, rating_operation, watchlist, responsible_analyst
-                FROM cri_cra_dev.crm.operations
-                WHERE id NOT IN (SELECT DISTINCT operation_id FROM cri_cra_dev.crm.task_rules)
+                SELECT o.id, o.name, o.rating_group, o.review_frequency, o.call_frequency, o.df_frequency, 
+                       o.maturity_date, o.monitoring_news, o.rating_operation, o.watchlist, o.responsible_analyst
+                FROM cri_cra_dev.crm.operations o
+                LEFT JOIN cri_cra_dev.crm.task_rules tr ON o.id = tr.operation_id
+                WHERE tr.operation_id IS NULL
+                LIMIT 10
             """)
             ops_to_fix = [format_row(row, cursor) for row in cursor.fetchall()]
             
