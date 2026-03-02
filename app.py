@@ -495,12 +495,14 @@ def sync_operation_rules():
     """
     Endpoint de manutenção para garantir que operações inseridas manualmente
     tenham suas regras de tarefas e histórico inicial criados.
+    Também corrige datas de início de regras baseadas no histórico existente.
     """
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
-            # Busca operações que não possuem NENHUMA regra de tarefa
-            # Optimized query using LEFT JOIN and LIMIT to avoid timeouts
+            fixed_count = 0
+            
+            # 1. Busca operações que não possuem NENHUMA regra de tarefa (Criação Inicial)
             cursor.execute("""
                 SELECT o.id, o.name, o.rating_group, o.review_frequency, o.call_frequency, o.df_frequency, 
                        o.maturity_date, o.monitoring_news, o.rating_operation, o.watchlist, o.responsible_analyst
@@ -509,22 +511,23 @@ def sync_operation_rules():
                 WHERE tr.operation_id IS NULL
                 LIMIT 10
             """)
-            ops_to_fix = [format_row(row, cursor) for row in cursor.fetchall()]
+            ops_to_create_rules = [format_row(row, cursor) for row in cursor.fetchall()]
             
-            fixed_count = 0
-            for op in ops_to_fix:
+            for op in ops_to_create_rules:
                 op_id = op['id']
                 politica_freq = RATING_TO_POLITICA_FREQUENCY.get(op['rating_group'], 'Anual')
                 gerencial_freq = op['review_frequency']
                 
-                # Ajusta frequência gerencial se for mais lenta que a política (regra de negócio)
                 if FREQUENCY_VALUE_MAP.get(gerencial_freq, 999) > FREQUENCY_VALUE_MAP.get(politica_freq, 0):
                     gerencial_freq = politica_freq
                 
-                today = datetime.now()
+                # Tenta buscar histórico existente para usar como data base
+                cursor.execute("SELECT date FROM cri_cra_dev.crm.rating_history WHERE operation_id = ? ORDER BY date DESC LIMIT 1", (op_id,))
+                last_history = cursor.fetchone()
+                start_date_base = last_history.date if last_history else datetime.now()
+                
                 end_date = op['maturity_date']
                 
-                # Regras padrão baseadas nos campos da operação
                 rules = [
                     ('Revisão Gerencial', gerencial_freq, 'Revisão periódica gerencial.'),
                     ('Revisão Política', politica_freq, 'Revisão de política de crédito anual.'),
@@ -539,21 +542,40 @@ def sync_operation_rules():
                     cursor.execute("""
                         INSERT INTO cri_cra_dev.crm.task_rules (operation_id, name, frequency, start_date, end_date, description)
                         VALUES (?, ?, ?, ?, ?, ?)
-                    """, (op_id, name, freq, today, end_date, desc))
+                    """, (op_id, name, freq, start_date_base, end_date, desc))
                 
-                # Garante que existe ao menos um registro no histórico de rating
-                cursor.execute("SELECT 1 FROM cri_cra_dev.crm.rating_history WHERE operation_id = ?", (op_id,))
-                if not cursor.fetchone():
+                # Se não tinha histórico e usamos datetime.now(), cria o histórico inicial
+                if not last_history:
                     cursor.execute("""
                         INSERT INTO cri_cra_dev.crm.rating_history (operation_id, date, rating_operation, rating_group, watchlist, sentiment, event_id)
                         VALUES (?, ?, ?, ?, ?, ?, NULL)
-                    """, (op_id, today, op['rating_operation'], op['rating_group'], op['watchlist'], 'Neutro'))
+                    """, (op_id, start_date_base, op['rating_operation'], op['rating_group'], op['watchlist'], 'Neutro'))
                 
-                log_action(cursor, 'System', 'UPDATE', 'Operation', op_id, "Regras de tarefas e histórico inicial sincronizados automaticamente via endpoint de reparo.")
+                log_action(cursor, 'System', 'UPDATE', 'Operation', op_id, "Regras criadas via sync.")
+                fixed_count += 1
+
+            # 2. Corrige datas de regras existentes que estão desincronizadas com o histórico
+            # Busca regras onde o start_date é diferente da data do último histórico de rating
+            cursor.execute("""
+                SELECT tr.id, tr.operation_id, tr.name, tr.start_date, MAX(rh.date) as last_history_date
+                FROM cri_cra_dev.crm.task_rules tr
+                JOIN cri_cra_dev.crm.rating_history rh ON tr.operation_id = rh.operation_id
+                WHERE tr.name IN ('Revisão Gerencial', 'Revisão Política')
+                GROUP BY tr.id, tr.operation_id, tr.name, tr.start_date
+                HAVING MAX(rh.date) <> tr.start_date
+                LIMIT 50
+            """)
+            rules_to_fix = [format_row(row, cursor) for row in cursor.fetchall()]
+            
+            for rule in rules_to_fix:
+                # Atualiza start_date para a data do último histórico
+                new_start_date = rule['last_history_date']
+                cursor.execute("UPDATE cri_cra_dev.crm.task_rules SET start_date = ? WHERE id = ?", (new_start_date, rule['id']))
+                log_action(cursor, 'System', 'UPDATE', 'TaskRule', rule['id'], f"Data base da regra '{rule['name']}' corrigida para {new_start_date} (baseado no histórico).")
                 fixed_count += 1
                 
             conn.commit()
-            return jsonify({"status": "success", "fixed_count": fixed_count, "message": f"{fixed_count} operações foram normalizadas."})
+            return jsonify({"status": "success", "fixed_count": fixed_count, "message": f"{fixed_count} itens processados (criação ou correção)."})
     except Exception as e:
         app.logger.error(f"Error syncing operation rules: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
