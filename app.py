@@ -542,8 +542,8 @@ def sync_operation_rules():
                 cursor.execute("SELECT 1 FROM cri_cra_dev.crm.rating_history WHERE operation_id = ?", (op_id,))
                 if not cursor.fetchone():
                     cursor.execute("""
-                        INSERT INTO cri_cra_dev.crm.rating_history (operation_id, date, rating_operation, rating_group, watchlist, sentiment)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT INTO cri_cra_dev.crm.rating_history (operation_id, date, rating_operation, rating_group, watchlist, sentiment, event_id)
+                        VALUES (?, ?, ?, ?, ?, ?, NULL)
                     """, (op_id, today, op['rating_operation'], op['rating_group'], op['watchlist'], 'Neutro'))
                 
                 log_action(cursor, 'System', 'UPDATE', 'Operation', op_id, "Regras de tarefas e histórico inicial sincronizados automaticamente via endpoint de reparo.")
