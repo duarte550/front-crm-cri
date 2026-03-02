@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 // FIX: Import Event to resolve name collision with DOM Event type, and TaskStatus for enum usage.
-import type { Operation, Task, TaskRule, Rating, Sentiment, Event } from './types';
+import type { Operation, Task, TaskRule, Rating, Sentiment, Event, Area } from './types';
 import { Page, TaskStatus } from './types';
 import OverviewDashboard from './components/OverviewDashboard';
 import OperationDetail from './components/OperationDetail';
@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [operations, setOperations] = useState<Operation[]>([]);
   const [currentPage, setCurrentPage] = useState<Page>(Page.OVERVIEW);
   const [selectedOperationId, setSelectedOperationId] = useState<number | null>(null);
+  const [selectedArea, setSelectedArea] = useState<Area | 'Mixed'>('Mixed');
   const [newTaskModalState, setNewTaskModalState] = useState<{isOpen: boolean; operationId?: number}>({ isOpen: false });
   const [reviewModalState, setReviewModalState] = useState<{isOpen: boolean; task: Task | null}>({isOpen: false, task: null});
   const [isLoading, setIsLoading] = useState(true);
@@ -62,6 +63,42 @@ const App: React.FC = () => {
   const allTasks = useMemo(() => {
     return operations.flatMap(op => op.tasks || []);
   }, [operations]);
+
+  const filteredOperations = useMemo(() => {
+    if (selectedArea === 'Mixed') return operations;
+    return operations.filter(op => op.area === selectedArea);
+  }, [operations, selectedArea]);
+
+  const filteredAllTasks = useMemo(() => {
+    if (selectedArea === 'Mixed') return allTasks;
+    return allTasks.filter(task => {
+        const op = operations.find(o => o.id === task.operationId);
+        return op?.area === selectedArea;
+    });
+  }, [allTasks, operations, selectedArea]);
+
+  const handleSyncRules = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/operations/sync-rules`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Falha ao sincronizar regras');
+      const result = await response.json();
+      if (result.fixed_count > 0) {
+        showToast(`${result.fixed_count} operações normalizadas com sucesso!`, 'success');
+        fetchOperations();
+      } else {
+        showToast('Todas as operações já estão sincronizadas.', 'success');
+      }
+    } catch (error) {
+      console.error("Error syncing rules:", error);
+      showToast('Erro ao sincronizar regras.', 'error');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleNavigate = (page: Page, operationId?: number) => {
     setCurrentPage(page);
@@ -332,11 +369,11 @@ const App: React.FC = () => {
             return (
                 <>
                     <OverdueOperationsHighlight
-                        operations={operations}
+                        operations={filteredOperations}
                         onNavigate={handleNavigate}
                     />
                     <OverviewDashboard
-                        operations={operations}
+                        operations={filteredOperations}
                         onSelectOperation={(id) => handleNavigate(Page.DETAIL, id)}
                         onAddOperation={handleAddOperation}
                         onOpenNewTaskModal={openNewTaskModal}
@@ -361,8 +398,8 @@ const App: React.FC = () => {
             );
         case Page.TASKS:
             return <TasksPage
-                operations={operations}
-                allTasks={allTasks}
+                operations={filteredOperations}
+                allTasks={filteredAllTasks}
                 onUpdateOperation={handleUpdateOperation}
                 onOpenNewTaskModal={openNewTaskModal}
                 onDeleteTask={handleDeleteTask}
@@ -370,7 +407,7 @@ const App: React.FC = () => {
             />;
         case Page.CREDIT_REVIEWS:
             return <CreditReviewsPage
-                operations={operations}
+                operations={filteredOperations}
                 onUpdateOperation={handleUpdateOperation}
                 onCompleteReview={(task) => setReviewModalState({ isOpen: true, task })}
                 apiUrl={API_BASE_URL}
@@ -380,12 +417,12 @@ const App: React.FC = () => {
             return <AuditLogPage apiUrl={API_BASE_URL} />;
         case Page.WATCHLIST:
             return <WatchlistPage 
-                operations={operations}
+                operations={filteredOperations}
                 onUpdateOperation={handleUpdateOperation}
             />;
         default:
              return <OverviewDashboard
-                operations={operations}
+                operations={filteredOperations}
                 onSelectOperation={(id) => handleNavigate(Page.DETAIL, id)}
                 onAddOperation={handleAddOperation}
                 onOpenNewTaskModal={openNewTaskModal}
@@ -417,6 +454,8 @@ const App: React.FC = () => {
         currentPage={currentPage}
         selectedOperationId={selectedOperationId}
         onNavigate={handleNavigate}
+        onSyncRules={handleSyncRules}
+        selectedArea={selectedArea}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white shadow-sm z-10">
@@ -432,6 +471,39 @@ const App: React.FC = () => {
                           Sincronizando Databricks...
                       </span>
                   )}
+              </div>
+
+              <div className="flex items-center bg-gray-100 p-1 rounded-lg border border-gray-200">
+                  <button
+                      onClick={() => setSelectedArea('CRI')}
+                      className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                          selectedArea === 'CRI' 
+                          ? 'bg-white text-blue-600 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                      CRI
+                  </button>
+                  <button
+                      onClick={() => setSelectedArea('Capital Solutions')}
+                      className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                          selectedArea === 'Capital Solutions' 
+                          ? 'bg-white text-blue-600 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                      Capital Solutions
+                  </button>
+                  <button
+                      onClick={() => setSelectedArea('Mixed')}
+                      className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                          selectedArea === 'Mixed' 
+                          ? 'bg-white text-blue-600 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                      Mixed
+                  </button>
               </div>
             </div>
           </div>
