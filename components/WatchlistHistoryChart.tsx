@@ -30,8 +30,12 @@ const getStatusForMonth = (operation: Operation, monthEndDate: Date): WatchlistS
         .filter(h => new Date(h.date) <= monthEndDate)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
-    // This will now correctly return the most recent status for that month, or the initial status if it existed before.
-    return relevantHistory.length > 0 ? relevantHistory[0].watchlist : creationEntry.watchlist;
+    // Find the most recent entry that has a valid watchlist status (ignoring nulls/undefined)
+    // This ensures "forward fill" behavior: if a month has no watchlist change (or a null change),
+    // it inherits the previous valid status.
+    const lastValidEntry = relevantHistory.find(h => h.watchlist);
+
+    return lastValidEntry ? lastValidEntry.watchlist : (creationEntry.watchlist || null);
 };
 
 const TimePeriodButton: React.FC<{
