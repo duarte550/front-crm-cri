@@ -79,22 +79,38 @@ const App: React.FC = () => {
 
   const handleSyncRules = async () => {
     setIsSyncing(true);
+    let totalFixed = 0;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/operations/sync-rules`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      if (!response.ok) throw new Error('Falha ao sincronizar regras');
-      const result = await response.json();
-      if (result.fixed_count > 0) {
-        showToast(`${result.fixed_count} operações normalizadas com sucesso!`, 'success');
+      while (true) {
+        const response = await fetch(`${API_BASE_URL}/api/operations/sync-rules`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+        
+        if (!response.ok) throw new Error('Falha ao sincronizar regras');
+        
+        const result = await response.json();
+        const count = result.fixed_count;
+        totalFixed += count;
+        
+        if (count === 0) break;
+        
+        // Optional: Update UI with progress if needed, e.g., via a toast that updates
+        showToast(`Sincronizando... ${totalFixed} operações processadas.`, 'success');
+        
+        // Small delay to be nice to the server
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      if (totalFixed > 0) {
+        showToast(`${totalFixed} operações normalizadas com sucesso!`, 'success');
         fetchOperations();
       } else {
         showToast('Todas as operações já estão sincronizadas.', 'success');
       }
     } catch (error) {
       console.error("Error syncing rules:", error);
-      showToast('Erro ao sincronizar regras.', 'error');
+      showToast('Erro ao sincronizar regras. Tente novamente.', 'error');
     } finally {
       setIsSyncing(false);
     }
