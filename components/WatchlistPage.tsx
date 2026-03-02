@@ -186,12 +186,15 @@ const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, on
         return sortedHistory[0]?.watchlist ?? operation.watchlist;
     }, [sortedHistory, operation.watchlist]);
 
-    const statusClasses = {
+    const statusClasses: Record<string, { border: string; bg: string }> = {
         [WatchlistStatus.VERDE]: { border: 'border-green-500', bg: 'bg-green-50' },
         [WatchlistStatus.AMARELO]: { border: 'border-yellow-500', bg: 'bg-yellow-50' },
         [WatchlistStatus.ROSA]: { border: 'border-pink-500', bg: 'bg-pink-50' },
         [WatchlistStatus.VERMELHO]: { border: 'border-red-500', bg: 'bg-red-50' },
     };
+
+    const defaultStatusClass = { border: 'border-gray-300', bg: 'bg-gray-50' };
+    const currentStatusClass = statusClasses[currentWatchlistStatus] || defaultStatusClass;
 
     const previousWatchlistStatus = useMemo(() => {
         const now = new Date();
@@ -203,7 +206,7 @@ const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, on
     }, [operation.ratingHistory]);
 
     return (
-        <div className={`border-l-4 rounded-r-lg shadow-sm transition-all duration-300 ${statusClasses[currentWatchlistStatus].border} ${isExpanded ? statusClasses[currentWatchlistStatus].bg : 'bg-white'}`}>
+        <div className={`border-l-4 rounded-r-lg shadow-sm transition-all duration-300 ${currentStatusClass.border} ${isExpanded ? currentStatusClass.bg : 'bg-white'}`}>
             <div 
                 className="p-4 cursor-pointer"
                 onClick={onToggle}
