@@ -22,13 +22,40 @@ const WatchlistPage: React.FC<WatchlistPageProps> = ({ operations, onUpdateOpera
 
     const filteredOperations = useMemo(() => {
         // This initial filter uses the derived current status for accuracy.
-        return operations.filter(op => {
+        const filtered = operations.filter(op => {
             if (activeFilter === 'All') return true;
             const latestHistoryEntry = op.ratingHistory.length > 0
                 ? [...op.ratingHistory].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
                 : null;
             const currentStatus = latestHistoryEntry?.watchlist ?? op.watchlist;
             return currentStatus === activeFilter;
+        });
+
+        // Sort operations: Red -> Pink -> Yellow -> Green, then Alphabetical
+        const statusOrder: Record<string, number> = {
+            [WatchlistStatus.VERMELHO]: 0,
+            [WatchlistStatus.ROSA]: 1,
+            [WatchlistStatus.AMARELO]: 2,
+            [WatchlistStatus.VERDE]: 3,
+        };
+
+        return filtered.sort((a, b) => {
+            const statusA = (a.ratingHistory.length > 0
+                ? [...a.ratingHistory].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())[0].watchlist
+                : a.watchlist) || WatchlistStatus.VERDE;
+            
+            const statusB = (b.ratingHistory.length > 0
+                ? [...b.ratingHistory].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())[0].watchlist
+                : b.watchlist) || WatchlistStatus.VERDE;
+
+            const orderA = statusOrder[statusA] ?? 99;
+            const orderB = statusOrder[statusB] ?? 99;
+
+            if (orderA !== orderB) {
+                return orderA - orderB;
+            }
+
+            return a.name.localeCompare(b.name);
         });
     }, [operations, activeFilter]);
 
