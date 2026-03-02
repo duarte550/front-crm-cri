@@ -78,17 +78,35 @@ const RatingHistoryChart: React.FC<RatingHistoryChartProps> = ({ history }) => {
                     })}
 
                     {/* X-Axis Labels and Grid Lines */}
-                    {sortedHistory.map((entry, i) => {
-                        const x = xScale(entry.date);
-                        return (
-                             <g key={`x-label-${i}`} transform={`translate(${x}, ${chartHeight})`}>
-                                <line y2={5} stroke="#9ca3af"></line>
-                                <text y={20} textAnchor="middle" className="text-xs fill-gray-500">
-                                    {new Date(entry.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                                </text>
-                            </g>
-                        )
-                    })}
+                    {(() => {
+                        // Calculate a safe interval to avoid overlap
+                        const labelWidth = 50; // Approximate width of a date label in pixels
+                        const totalWidth = chartWidth;
+                        const maxLabels = Math.floor(totalWidth / labelWidth);
+                        const interval = Math.ceil(sortedHistory.length / maxLabels);
+
+                        return sortedHistory.map((entry, i) => {
+                            // Only show label if it matches the interval or is the first/last point
+                            if (i % interval !== 0 && i !== sortedHistory.length - 1) return null;
+
+                            const x = xScale(entry.date);
+                            return (
+                                <g key={`x-label-${i}`} transform={`translate(${x}, ${chartHeight})`}>
+                                    <line y2={5} stroke="#9ca3af" />
+                                    <text 
+                                        y={20} 
+                                        dy="0.71em" 
+                                        textAnchor="middle" 
+                                        className="text-xs fill-gray-500"
+                                        transform="rotate(-45, 0, 20)"
+                                        style={{ textAnchor: 'end' }}
+                                    >
+                                        {new Date(entry.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                    </text>
+                                </g>
+                            );
+                        });
+                    })()}
                     
                     {/* Data Lines */}
                     <polyline points={operationPath} fill="none" stroke="#3b82f6" strokeWidth="2" />
