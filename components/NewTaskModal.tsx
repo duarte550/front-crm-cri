@@ -99,6 +99,24 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, operations
           case 'news':
               newTemplate = { ...newTemplate, name: 'Monitorar Notícias', frequency: 'Semanal', description: 'Acompanhar notícias.' };
               break;
+          case 'fiiReport':
+              newTemplate = { ...newTemplate, name: 'Verificar Relatório FII', frequency: 'Mensal', description: 'Verificar relatório mensal do FII.' };
+              break;
+          case 'operationalInfo':
+              newTemplate = { ...newTemplate, name: 'Info Operacional', frequency: 'Mensal', description: 'Coletar e analisar informações operacionais.' };
+              break;
+          case 'receivablesPortfolio':
+              newTemplate = { ...newTemplate, name: 'Carteira de Recebíveis', frequency: 'Mensal', description: 'Análise da carteira de recebíveis.' };
+              break;
+          case 'monthlyConstructionReport':
+              newTemplate = { ...newTemplate, name: 'Relatório Mensal de Obra', frequency: 'Mensal', description: 'Acompanhamento do relatório de obra.' };
+              break;
+          case 'monthlyCommercialInfo':
+              newTemplate = { ...newTemplate, name: 'Info Comercial Mensal', frequency: 'Mensal', description: 'Acompanhamento comercial mensal.' };
+              break;
+          case 'speDfs':
+              newTemplate = { ...newTemplate, name: 'DFs da SPE', frequency: 'Anual', description: 'Coleta e análise das DFs da SPE.' };
+              break;
           default:
               setTemplateData(undefined);
               return;
@@ -164,6 +182,12 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, operations
                                     <option value="call">Call de Acompanhamento</option>
                                     <option value="dfs">Análise de DFs & Dívida</option>
                                     <option value="news">Monitorar Notícias</option>
+                                    <option value="fiiReport">Verificar Relatório FII</option>
+                                    <option value="operationalInfo">Info Operacional</option>
+                                    <option value="receivablesPortfolio">Carteira de Recebíveis</option>
+                                    <option value="monthlyConstructionReport">Relatório Mensal de Obra</option>
+                                    <option value="monthlyCommercialInfo">Info Comercial Mensal</option>
+                                    <option value="speDfs">DFs da SPE</option>
                                 </select>
                             </div>
                             <TaskRuleForm
