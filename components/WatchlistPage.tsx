@@ -2,9 +2,11 @@
 import React, { useState, useMemo } from 'react';
 import type { Operation, RatingHistoryEntry, Event, Rating, Sentiment as SentimentType, WatchlistStatus as WatchlistStatusType } from '../types';
 import { WatchlistStatus, Sentiment, ratingOptions } from '../types';
-import { BellIcon, ArrowUpIcon, ArrowRightIcon, ArrowDownIcon } from './icons/Icons';
+import { BellIcon, ArrowUpIcon, ArrowRightIcon, ArrowDownIcon, PencilIcon, TrashIcon } from './icons/Icons';
 import WatchlistChangeForm from './WatchlistChangeForm';
 import WatchlistHistoryChart from './WatchlistHistoryChart';
+import WatchlistSummary from './WatchlistSummary';
+import Modal from './Modal';
 
 
 interface WatchlistPageProps {
@@ -18,6 +20,10 @@ const WatchlistPage: React.FC<WatchlistPageProps> = ({ operations, onUpdateOpera
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [operationToEdit, setOperationToEdit] = useState<Operation | null>(null);
     
+    // State for editing existing events
+    const [editingHistoryEntry, setEditingHistoryEntry] = useState<RatingHistoryEntry | null>(null);
+    const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+
     const filterOptions: (WatchlistStatus | 'All')[] = ['All', ...Object.values(WatchlistStatus)];
 
     const filteredOperations = useMemo(() => {
@@ -62,11 +68,15 @@ const WatchlistPage: React.FC<WatchlistPageProps> = ({ operations, onUpdateOpera
     const handleOpenModal = (op: Operation) => {
         setOperationToEdit(op);
         setIsModalOpen(true);
+        setEditingHistoryEntry(null);
+        setEditingEvent(null);
     };
     
     const handleCloseModal = () => {
         setOperationToEdit(null);
         setIsModalOpen(false);
+        setEditingHistoryEntry(null);
+        setEditingEvent(null);
     };
     
     const handleSaveChanges = (data: Parameters<typeof onUpdateOperation>[0]) => {
@@ -75,28 +85,79 @@ const WatchlistPage: React.FC<WatchlistPageProps> = ({ operations, onUpdateOpera
     };
 
     const handleSaveWatchlistChange = (op: Operation, data: { watchlist: WatchlistStatusType, ratingOp: Rating, ratingGroup: Rating, sentiment: SentimentType, event: Omit<Event, 'id'>}) => {
-        const newEventId = Date.now();
-        const eventToSave: Event = { ...data.event, id: newEventId };
-        
-        const newHistoryEntry: RatingHistoryEntry = {
-            id: Date.now() + 1,
-            date: eventToSave.date,
-            ratingOperation: data.ratingOp,
-            ratingGroup: data.ratingGroup,
-            watchlist: data.watchlist,
-            sentiment: data.sentiment, // Use manually selected sentiment
-            eventId: newEventId,
-        };
+        if (editingHistoryEntry && editingEvent) {
+            // Update existing entry
+            const updatedEvent = { ...editingEvent, ...data.event };
+            const updatedHistoryEntry = { 
+                ...editingHistoryEntry, 
+                watchlist: data.watchlist,
+                ratingOperation: data.ratingOp,
+                ratingGroup: data.ratingGroup,
+                sentiment: data.sentiment,
+                date: data.event.date // Update date if changed
+            };
 
-        const updatedOp = {
-            ...op,
-            watchlist: data.watchlist,
-            ratingOperation: data.ratingOp,
-            ratingGroup: data.ratingGroup,
-            events: [...op.events, eventToSave],
-            ratingHistory: [...op.ratingHistory, newHistoryEntry],
-        };
-        handleSaveChanges(updatedOp);
+            const updatedOp = {
+                ...op,
+                watchlist: data.watchlist, // Update current status if it's the latest entry? Ideally we recalculate, but simple update is fine for now
+                ratingOperation: data.ratingOp,
+                ratingGroup: data.ratingGroup,
+                events: op.events.map(e => e.id === editingEvent.id ? updatedEvent : e),
+                ratingHistory: op.ratingHistory.map(h => h.id === editingHistoryEntry.id ? updatedHistoryEntry : h),
+            };
+            handleSaveChanges(updatedOp);
+
+        } else {
+            // Create new entry
+            const newEventId = Date.now();
+            const eventToSave: Event = { ...data.event, id: newEventId };
+            
+            const newHistoryEntry: RatingHistoryEntry = {
+                id: Date.now() + 1,
+                date: eventToSave.date,
+                ratingOperation: data.ratingOp,
+                ratingGroup: data.ratingGroup,
+                watchlist: data.watchlist,
+                sentiment: data.sentiment, // Use manually selected sentiment
+                eventId: newEventId,
+            };
+    
+            const updatedOp = {
+                ...op,
+                watchlist: data.watchlist,
+                ratingOperation: data.ratingOp,
+                ratingGroup: data.ratingGroup,
+                events: [...op.events, eventToSave],
+                ratingHistory: [...op.ratingHistory, newHistoryEntry],
+            };
+            handleSaveChanges(updatedOp);
+        }
+    };
+
+    const handleEditEvent = (op: Operation, historyEntry: RatingHistoryEntry, event: Event) => {
+        setOperationToEdit(op);
+        setEditingHistoryEntry(historyEntry);
+        setEditingEvent(event);
+        setIsModalOpen(true);
+    };
+
+    const handleDeleteEvent = (op: Operation, historyEntryId: number, eventId: number) => {
+        if (window.confirm('Tem certeza que deseja excluir este evento do histórico?')) {
+            const updatedOp = {
+                ...op,
+                events: op.events.filter(e => e.id !== eventId),
+                ratingHistory: op.ratingHistory.filter(h => h.id !== historyEntryId),
+            };
+            // Recalculate current status based on remaining history
+            const sortedHistory = [...updatedOp.ratingHistory].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            if (sortedHistory.length > 0) {
+                updatedOp.watchlist = sortedHistory[0].watchlist;
+                updatedOp.ratingOperation = sortedHistory[0].ratingOperation;
+                updatedOp.ratingGroup = sortedHistory[0].ratingGroup;
+            }
+            
+            onUpdateOperation(updatedOp);
+        }
     };
 
     return (
@@ -106,8 +167,17 @@ const WatchlistPage: React.FC<WatchlistPageProps> = ({ operations, onUpdateOpera
                     operation={operationToEdit}
                     onClose={handleCloseModal}
                     onSave={(data) => handleSaveWatchlistChange(operationToEdit, data)}
+                    initialData={editingHistoryEntry && editingEvent ? {
+                        watchlist: editingHistoryEntry.watchlist,
+                        ratingOp: editingHistoryEntry.ratingOperation,
+                        ratingGroup: editingHistoryEntry.ratingGroup,
+                        sentiment: editingHistoryEntry.sentiment,
+                        event: editingEvent
+                    } : undefined}
                 />
             )}
+
+            <WatchlistSummary operations={operations} />
 
             <div className="bg-white p-6 rounded-lg shadow-lg">
                 <h2 className="text-2xl font-bold text-gray-800 mb-4">Gerenciamento de Watchlist</h2>
@@ -136,6 +206,8 @@ const WatchlistPage: React.FC<WatchlistPageProps> = ({ operations, onUpdateOpera
                             isExpanded={expandedOpId === op.id}
                             onToggle={() => setExpandedOpId(prev => prev === op.id ? null : op.id)}
                             onOpenUpdateModal={() => handleOpenModal(op)}
+                            onEditEvent={(historyEntry, event) => handleEditEvent(op, historyEntry, event)}
+                            onDeleteEvent={(historyEntryId, eventId) => handleDeleteEvent(op, historyEntryId, eventId)}
                         />
                     ))}
                     {filteredOperations.length === 0 && (
@@ -175,9 +247,11 @@ interface OperationCardProps {
     isExpanded: boolean;
     onToggle: () => void;
     onOpenUpdateModal: () => void;
+    onEditEvent: (historyEntry: RatingHistoryEntry, event: Event) => void;
+    onDeleteEvent: (historyEntryId: number, eventId: number) => void;
 }
 
-const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, onToggle, onOpenUpdateModal }) => {
+const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, onToggle, onOpenUpdateModal, onEditEvent, onDeleteEvent }) => {
     const sortedHistory = useMemo(() => {
         return [...operation.ratingHistory].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [operation.ratingHistory]);
@@ -297,11 +371,23 @@ const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, on
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className={`flex items-center gap-2 font-semibold text-sm ${entry.sentiment === 'Positivo' ? 'text-green-600' : entry.sentiment === 'Negativo' ? 'text-red-600' : 'text-gray-600'}`}>
-                                            {entry.sentiment === 'Positivo' && <ArrowUpIcon className="w-4 h-4" />}
-                                            {entry.sentiment === 'Neutro' && <ArrowRightIcon className="w-4 h-4" />}
-                                            {entry.sentiment === 'Negativo' && <ArrowDownIcon className="w-4 h-4" />}
-                                            {entry.sentiment}
+                                        <div className="flex items-center gap-4">
+                                            <div className={`flex items-center gap-2 font-semibold text-sm ${entry.sentiment === 'Positivo' ? 'text-green-600' : entry.sentiment === 'Negativo' ? 'text-red-600' : 'text-gray-600'}`}>
+                                                {entry.sentiment === 'Positivo' && <ArrowUpIcon className="w-4 h-4" />}
+                                                {entry.sentiment === 'Neutro' && <ArrowRightIcon className="w-4 h-4" />}
+                                                {entry.sentiment === 'Negativo' && <ArrowDownIcon className="w-4 h-4" />}
+                                                {entry.sentiment}
+                                            </div>
+                                            {event && (
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => onEditEvent(entry, event)} className="text-gray-400 hover:text-blue-600" title="Editar Evento">
+                                                        <PencilIcon className="w-4 h-4" />
+                                                    </button>
+                                                    <button onClick={() => onDeleteEvent(entry.id, event.id)} className="text-gray-400 hover:text-red-600" title="Excluir Evento">
+                                                        <TrashIcon className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     {event && (
