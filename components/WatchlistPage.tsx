@@ -252,6 +252,8 @@ interface OperationCardProps {
 }
 
 const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, onToggle, onOpenUpdateModal, onEditEvent, onDeleteEvent }) => {
+    const [showFullHistory, setShowFullHistory] = useState(false);
+
     const sortedHistory = useMemo(() => {
         return [...operation.ratingHistory].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [operation.ratingHistory]);
@@ -278,6 +280,151 @@ const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, on
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         return relevantHistory.length > 0 ? relevantHistory[0].watchlist : null;
     }, [operation.ratingHistory]);
+
+    const renderFullEntry = (entry: RatingHistoryEntry, index: number) => {
+        const event = operation.events.find(e => e.id === entry.eventId);
+        const previousEntry = sortedHistory[index + 1];
+
+        const prevStatus = previousEntry?.watchlist;
+        const statusChanged = prevStatus && prevStatus !== entry.watchlist;
+
+        const prevRatingOp = previousEntry?.ratingOperation;
+        const ratingOpChanged = prevRatingOp && prevRatingOp !== entry.ratingOperation;
+
+        const prevRatingGroup = previousEntry?.ratingGroup;
+        const ratingGroupChanged = prevRatingGroup && prevRatingGroup !== entry.ratingGroup;
+
+        return (
+            <div key={entry.id} className="p-3 border rounded-md bg-white">
+                <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-3">
+                        <p className="font-semibold text-gray-800 text-base w-24">{new Date(entry.date).toLocaleDateString('pt-BR')}</p>
+                        <div className="flex flex-col items-start text-sm space-y-1">
+                            {/* Watchlist change */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-gray-500 w-12 text-right">Farol:</span>
+                                {statusChanged ? (
+                                    <span className="flex items-center gap-1.5"><WatchlistBadge status={prevStatus} /><span className="font-bold text-gray-700 mx-1">→</span><WatchlistBadge status={entry.watchlist} /></span>
+                                ) : (
+                                    <WatchlistBadge status={entry.watchlist} />
+                                )}
+                            </div>
+                            {/* Rating Op change */}
+                            <div className="flex items-center gap-2 text-gray-700">
+                                <span className="text-gray-500 w-12 text-right">Op:</span>
+                                {ratingOpChanged ? (
+                                    <span className="flex items-center gap-1.5"><span className="font-mono bg-gray-100 px-1 rounded">{prevRatingOp}</span><span className="font-bold text-gray-700 mx-1">→</span><span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingOperation}</span></span>
+                                ) : (
+                                    <span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingOperation}</span>
+                                )}
+                            </div>
+                            {/* Rating Group change */}
+                            <div className="flex items-center gap-2 text-gray-700">
+                                <span className="text-gray-500 w-12 text-right">Grupo:</span>
+                                {ratingGroupChanged ? (
+                                        <span className="flex items-center gap-1.5"><span className="font-mono bg-gray-100 px-1 rounded">{prevRatingGroup}</span><span className="font-bold text-gray-700 mx-1">→</span><span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingGroup}</span></span>
+                                ) : (
+                                    <span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingGroup}</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className={`flex items-center gap-2 font-semibold text-sm ${entry.sentiment === 'Positivo' ? 'text-green-600' : entry.sentiment === 'Negativo' ? 'text-red-600' : 'text-gray-600'}`}>
+                            {entry.sentiment === 'Positivo' && <ArrowUpIcon className="w-4 h-4" />}
+                            {entry.sentiment === 'Neutro' && <ArrowRightIcon className="w-4 h-4" />}
+                            {entry.sentiment === 'Negativo' && <ArrowDownIcon className="w-4 h-4" />}
+                            {entry.sentiment}
+                        </div>
+                        {event && (
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => onEditEvent(entry, event)} className="text-gray-400 hover:text-blue-600" title="Editar Evento">
+                                    <PencilIcon className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => onDeleteEvent(entry.id, event.id)} className="text-gray-400 hover:text-red-600" title="Excluir Evento">
+                                    <TrashIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                {event && (
+                    <div className="border-t border-gray-200 pt-3 text-sm text-gray-800 space-y-2">
+                        <p><strong className="font-semibold text-gray-600">Evento:</strong> {event.title}</p>
+                        <p>{event.description}</p>
+                        {event.nextSteps && <p><strong className="font-semibold text-gray-600">Próximos Passos:</strong> {event.nextSteps}</p>}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderTimelineRow = (entry: RatingHistoryEntry, index: number) => {
+        const previousEntry = sortedHistory[index + 1]; // The one before this one chronologically
+        
+        const prevStatus = previousEntry?.watchlist;
+        const statusChanged = prevStatus && prevStatus !== entry.watchlist;
+
+        const prevRatingOp = previousEntry?.ratingOperation;
+        const ratingOpChanged = prevRatingOp && prevRatingOp !== entry.ratingOperation;
+
+        const prevRatingGroup = previousEntry?.ratingGroup;
+        const ratingGroupChanged = prevRatingGroup && prevRatingGroup !== entry.ratingGroup;
+
+        return (
+            <div key={entry.id} className="relative pl-6">
+                {/* Dot */}
+                <div className="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full bg-gray-300 border-2 border-white"></div>
+                
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+                    <span className="text-sm text-gray-500 font-mono min-w-[90px]">
+                        {new Date(entry.date).toLocaleDateString('pt-BR')}
+                    </span>
+                    
+                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                        {/* Watchlist */}
+                        {statusChanged ? (
+                             <div className="flex items-center gap-1">
+                                <span className="text-gray-500 text-xs">Farol:</span>
+                                <WatchlistBadge status={prevStatus} />
+                                <span className="text-gray-400">→</span>
+                                <WatchlistBadge status={entry.watchlist} />
+                             </div>
+                        ) : (
+                             <WatchlistBadge status={entry.watchlist} />
+                        )}
+
+                        {/* Rating Op */}
+                        {ratingOpChanged && (
+                            <div className="flex items-center gap-1">
+                                <span className="text-gray-500 text-xs">Op:</span>
+                                <span className="font-mono bg-gray-100 px-1 rounded text-xs text-gray-500">{prevRatingOp}</span>
+                                <span className="text-gray-400">→</span>
+                                <span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingOperation}</span>
+                            </div>
+                        )}
+
+                        {/* Rating Group */}
+                        {ratingGroupChanged && (
+                            <div className="flex items-center gap-1">
+                                <span className="text-gray-500 text-xs">Gr:</span>
+                                <span className="font-mono bg-gray-100 px-1 rounded text-xs text-gray-500">{prevRatingGroup}</span>
+                                <span className="text-gray-400">→</span>
+                                <span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingGroup}</span>
+                            </div>
+                        )}
+                        
+                        {/* Sentiment Icon */}
+                         <div className={`flex items-center gap-1 ${entry.sentiment === 'Positivo' ? 'text-green-600' : entry.sentiment === 'Negativo' ? 'text-red-600' : 'text-gray-500'}`}>
+                            {entry.sentiment === 'Positivo' && <ArrowUpIcon className="w-3 h-3" />}
+                            {entry.sentiment === 'Neutro' && <ArrowRightIcon className="w-3 h-3" />}
+                            {entry.sentiment === 'Negativo' && <ArrowDownIcon className="w-3 h-3" />}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className={`border-l-4 rounded-r-lg shadow-sm transition-all duration-300 ${currentStatusClass.border} ${isExpanded ? currentStatusClass.bg : 'bg-white'}`}>
@@ -321,85 +468,42 @@ const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, on
 
             {isExpanded && (
                 <div className="p-4 border-t border-gray-200 bg-white/50 space-y-4">
-                    <h4 className="font-semibold text-gray-700">Histórico de Alterações</h4>
+                    <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-semibold text-gray-700">
+                            {showFullHistory ? 'Histórico Completo' : 'Última Atualização & Linha do Tempo'}
+                        </h4>
+                        <button 
+                            onClick={() => setShowFullHistory(!showFullHistory)}
+                            className="text-sm text-blue-600 hover:text-blue-800 underline font-medium"
+                        >
+                            {showFullHistory ? 'Ver Resumo' : 'Ver Histórico Completo'}
+                        </button>
+                    </div>
+
                     {sortedHistory.length > 0 ? (
-                        sortedHistory.map((entry, index) => {
-                            const event = operation.events.find(e => e.id === entry.eventId);
-                            const previousEntry = sortedHistory[index + 1];
-
-                            const prevStatus = previousEntry?.watchlist;
-                            const statusChanged = prevStatus && prevStatus !== entry.watchlist;
-
-                            const prevRatingOp = previousEntry?.ratingOperation;
-                            const ratingOpChanged = prevRatingOp && prevRatingOp !== entry.ratingOperation;
-
-                            const prevRatingGroup = previousEntry?.ratingGroup;
-                            const ratingGroupChanged = prevRatingGroup && prevRatingGroup !== entry.ratingGroup;
-
-                            return (
-                                <div key={entry.id} className="p-3 border rounded-md bg-white">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex items-center gap-3">
-                                            <p className="font-semibold text-gray-800 text-base w-24">{new Date(entry.date).toLocaleDateString('pt-BR')}</p>
-                                            <div className="flex flex-col items-start text-sm space-y-1">
-                                                {/* Watchlist change */}
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-gray-500 w-12 text-right">Farol:</span>
-                                                    {statusChanged ? (
-                                                        <span className="flex items-center gap-1.5"><WatchlistBadge status={prevStatus} /><span className="font-bold text-gray-700 mx-1">→</span><WatchlistBadge status={entry.watchlist} /></span>
-                                                    ) : (
-                                                        <WatchlistBadge status={entry.watchlist} />
-                                                    )}
-                                                </div>
-                                                {/* Rating Op change */}
-                                                <div className="flex items-center gap-2 text-gray-700">
-                                                    <span className="text-gray-500 w-12 text-right">Op:</span>
-                                                    {ratingOpChanged ? (
-                                                        <span className="flex items-center gap-1.5"><span className="font-mono bg-gray-100 px-1 rounded">{prevRatingOp}</span><span className="font-bold text-gray-700 mx-1">→</span><span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingOperation}</span></span>
-                                                    ) : (
-                                                        <span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingOperation}</span>
-                                                    )}
-                                                </div>
-                                                {/* Rating Group change */}
-                                                <div className="flex items-center gap-2 text-gray-700">
-                                                    <span className="text-gray-500 w-12 text-right">Grupo:</span>
-                                                    {ratingGroupChanged ? (
-                                                         <span className="flex items-center gap-1.5"><span className="font-mono bg-gray-100 px-1 rounded">{prevRatingGroup}</span><span className="font-bold text-gray-700 mx-1">→</span><span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingGroup}</span></span>
-                                                    ) : (
-                                                        <span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingGroup}</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className={`flex items-center gap-2 font-semibold text-sm ${entry.sentiment === 'Positivo' ? 'text-green-600' : entry.sentiment === 'Negativo' ? 'text-red-600' : 'text-gray-600'}`}>
-                                                {entry.sentiment === 'Positivo' && <ArrowUpIcon className="w-4 h-4" />}
-                                                {entry.sentiment === 'Neutro' && <ArrowRightIcon className="w-4 h-4" />}
-                                                {entry.sentiment === 'Negativo' && <ArrowDownIcon className="w-4 h-4" />}
-                                                {entry.sentiment}
-                                            </div>
-                                            {event && (
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={() => onEditEvent(entry, event)} className="text-gray-400 hover:text-blue-600" title="Editar Evento">
-                                                        <PencilIcon className="w-4 h-4" />
-                                                    </button>
-                                                    <button onClick={() => onDeleteEvent(entry.id, event.id)} className="text-gray-400 hover:text-red-600" title="Excluir Evento">
-                                                        <TrashIcon className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {event && (
-                                        <div className="border-t border-gray-200 pt-3 text-sm text-gray-800 space-y-2">
-                                            <p><strong className="font-semibold text-gray-600">Evento:</strong> {event.title}</p>
-                                            <p>{event.description}</p>
-                                            {event.nextSteps && <p><strong className="font-semibold text-gray-600">Próximos Passos:</strong> {event.nextSteps}</p>}
-                                        </div>
-                                    )}
+                        showFullHistory ? (
+                            <div className="space-y-4">
+                                {sortedHistory.map((entry, index) => renderFullEntry(entry, index))}
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {/* Latest Event (Full Detail) */}
+                                <div>
+                                    {renderFullEntry(sortedHistory[0], 0)}
                                 </div>
-                            );
-                        })
+
+                                {/* Timeline of previous events */}
+                                {sortedHistory.length > 1 && (
+                                    <div className="relative pl-4 border-l-2 border-gray-200 space-y-6 ml-2">
+                                        {sortedHistory.slice(1).map((entry, idx) => {
+                                            // idx here is 0-based relative to slice. 
+                                            // Real index in sortedHistory is idx + 1.
+                                            return renderTimelineRow(entry, idx + 1);
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )
                     ) : (
                         <p className="text-center text-gray-500 py-4">Nenhum histórico de alteração para esta operação.</p>
                     )}
