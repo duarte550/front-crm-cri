@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Operation, RatingHistoryEntry, Event, Rating, Sentiment as SentimentType, WatchlistStatus as WatchlistStatusType } from '../types';
 import { WatchlistStatus, Sentiment, ratingOptions } from '../types';
 import { BellIcon, ArrowUpIcon, ArrowRightIcon, ArrowDownIcon, PencilIcon, TrashIcon } from './icons/Icons';
@@ -253,10 +253,17 @@ interface OperationCardProps {
 
 const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, onToggle, onOpenUpdateModal, onEditEvent, onDeleteEvent }) => {
     const [showFullHistory, setShowFullHistory] = useState(false);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     const sortedHistory = useMemo(() => {
         return [...operation.ratingHistory].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [operation.ratingHistory]);
+
+    useEffect(() => {
+        if (isExpanded && !showFullHistory && scrollContainerRef.current) {
+            scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
+        }
+    }, [isExpanded, showFullHistory]);
 
     const currentWatchlistStatus = useMemo(() => {
         return sortedHistory[0]?.watchlist ?? operation.watchlist;
@@ -501,11 +508,13 @@ const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, on
                                 {/* Timeline of previous events */}
                                 {sortedHistory.length > 1 && (
                                     <div className="mt-6">
-                                        <div className="flex overflow-x-auto pb-4 pt-2 px-2 -mx-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-                                            {sortedHistory.slice(1).map((entry, idx) => {
-                                                // idx here is 0-based relative to slice. 
-                                                // Real index in sortedHistory is idx + 1.
-                                                return renderTimelineItemHorizontal(entry, idx + 1);
+                                        <div 
+                                            ref={scrollContainerRef}
+                                            className="flex overflow-x-auto pb-4 pt-2 px-2 -mx-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+                                        >
+                                            {sortedHistory.slice(1).reverse().map((entry) => {
+                                                const originalIndex = sortedHistory.findIndex(h => h.id === entry.id);
+                                                return renderTimelineItemHorizontal(entry, originalIndex);
                                             })}
                                         </div>
                                     </div>
