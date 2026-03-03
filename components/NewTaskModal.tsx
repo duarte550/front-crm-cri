@@ -13,14 +13,21 @@ interface NewTaskModalProps {
   preselectedOperationId?: number;
 }
 
+const RATING_TO_POLITICA_FREQUENCY: Record<string, string> = {
+    'A4': 'Anual', 'Baa1': 'Anual', 'Baa3': 'Anual', 'Baa4': 'Anual',
+    'Ba1': 'Anual', 'Ba4': 'Anual', 'Ba5': 'Anual', 'Ba6': 'Anual',
+    'B1': 'Semestral', 'B2': 'Semestral', 'B3': 'Semestral',
+    'C1': 'Semestral', 'C2': 'Semestral', 'C3': 'Semestral',
+};
+
 const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, operations, onUpdateOperation, preselectedOperationId }) => {
   const [operationId, setOperationId] = useState<number | null>(null);
   const [formType, setFormType] = useState<'pontual' | 'recorrente'>('pontual');
+  const [templateData, setTemplateData] = useState<TaskRule | undefined>(undefined);
 
-  const preselectedOperation = useMemo(() => {
-    if (!preselectedOperationId) return null;
-    return operations.find(op => op.id === preselectedOperationId);
-  }, [preselectedOperationId, operations]);
+  const selectedOperation = useMemo(() => {
+    return operations.find(op => op.id === operationId);
+  }, [operationId, operations]);
 
   const handleSaveTaskRule = (rule: Omit<TaskRule, 'id'>) => {
     if (!operationId) return;
@@ -39,14 +46,18 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, operations
       if (isOpen) {
           setOperationId(preselectedOperationId ?? null);
           setFormType('pontual'); // Reset to default tab when opening
+          setTemplateData(undefined);
       } else {
           // Delay reset to prevent form disappearing before modal closes
-          setTimeout(() => setOperationId(null), 200); 
+          setTimeout(() => {
+              setOperationId(null);
+              setTemplateData(undefined);
+          }, 200); 
       }
   }, [isOpen, preselectedOperationId]);
   
-  const title = preselectedOperation 
-    ? `Adicionar Tarefa para: ${preselectedOperation.name}` 
+  const title = selectedOperation 
+    ? `Adicionar Tarefa para: ${selectedOperation.name}` 
     : "Adicionar Nova Tarefa";
 
   const TabButton: React.FC<{isActive: boolean, onClick: () => void, children: React.ReactNode}> = ({ isActive, onClick, children }) => (
@@ -59,6 +70,42 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, operations
         {children}
       </button>
   );
+
+  const handleTemplateSelect = (value: string) => {
+      if (!selectedOperation) return;
+      
+      const today = new Date().toISOString().split('T')[0];
+      const maturity = selectedOperation.maturityDate ? selectedOperation.maturityDate.split('T')[0] : today;
+      
+      let newTemplate: Partial<TaskRule> = {
+          startDate: today,
+          endDate: maturity,
+      };
+
+      switch (value) {
+          case 'gerencial':
+              newTemplate = { ...newTemplate, name: 'Revisão Gerencial', frequency: selectedOperation.reviewFrequency as any, description: 'Revisão periódica gerencial.' };
+              break;
+          case 'politica':
+               const freq = RATING_TO_POLITICA_FREQUENCY[selectedOperation.ratingGroup] || 'Anual';
+               newTemplate = { ...newTemplate, name: 'Revisão Política', frequency: freq as any, description: 'Revisão de política de crédito anual.' };
+               break;
+          case 'call':
+              newTemplate = { ...newTemplate, name: 'Call de Acompanhamento', frequency: selectedOperation.callFrequency as any, description: 'Call de acompanhamento.' };
+              break;
+          case 'dfs':
+              newTemplate = { ...newTemplate, name: 'Análise de DFs & Dívida', frequency: selectedOperation.dfFrequency as any, description: 'Análise dos DFs.' };
+              break;
+          case 'news':
+              newTemplate = { ...newTemplate, name: 'Monitorar Notícias', frequency: 'Semanal', description: 'Acompanhar notícias.' };
+              break;
+          default:
+              setTemplateData(undefined);
+              return;
+      }
+      // We cast to TaskRule because the form uses it for initial state, but doesn't strictly require ID for that purpose
+      setTemplateData(newTemplate as TaskRule);
+  };
 
   return (
     <Modal isOpen={isOpen} title={title} onClose={onClose}>
@@ -101,10 +148,30 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, operations
                         />
                      )}
                      {formType === 'recorrente' && (
-                        <TaskRuleForm
-                            onClose={onClose}
-                            onSave={handleSaveTaskRule}
-                        />
+                        <div className="space-y-4">
+                            <div className="bg-blue-50 p-3 rounded-md border border-blue-100">
+                                <label className="block text-xs font-semibold text-blue-700 uppercase mb-1">
+                                    Carregar Modelo Padrão (Opcional)
+                                </label>
+                                <select 
+                                    className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    onChange={(e) => handleTemplateSelect(e.target.value)}
+                                    value=""
+                                >
+                                    <option value="" disabled>Selecione para preencher automaticamente...</option>
+                                    <option value="gerencial">Revisão Gerencial</option>
+                                    <option value="politica">Revisão Política</option>
+                                    <option value="call">Call de Acompanhamento</option>
+                                    <option value="dfs">Análise de DFs & Dívida</option>
+                                    <option value="news">Monitorar Notícias</option>
+                                </select>
+                            </div>
+                            <TaskRuleForm
+                                onClose={onClose}
+                                onSave={handleSaveTaskRule}
+                                initialData={templateData}
+                            />
+                        </div>
                      )}
                 </div>
            </div>
