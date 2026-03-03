@@ -359,7 +359,7 @@ const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, on
         );
     };
 
-    const renderTimelineRow = (entry: RatingHistoryEntry, index: number) => {
+    const renderTimelineItemHorizontal = (entry: RatingHistoryEntry, index: number) => {
         const previousEntry = sortedHistory[index + 1]; // The one before this one chronologically
         
         const prevStatus = previousEntry?.watchlist;
@@ -372,54 +372,60 @@ const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, on
         const ratingGroupChanged = prevRatingGroup && prevRatingGroup !== entry.ratingGroup;
 
         return (
-            <div key={entry.id} className="relative pl-6">
-                {/* Dot */}
-                <div className="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full bg-gray-300 border-2 border-white"></div>
-                
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-                    <span className="text-sm text-gray-500 font-mono min-w-[90px]">
-                        {new Date(entry.date).toLocaleDateString('pt-BR')}
-                    </span>
-                    
-                    <div className="flex flex-wrap items-center gap-3 text-sm">
-                        {/* Watchlist */}
-                        {statusChanged ? (
-                             <div className="flex items-center gap-1">
-                                <span className="text-gray-500 text-xs">Farol:</span>
-                                <WatchlistBadge status={prevStatus} />
-                                <span className="text-gray-400">→</span>
-                                <WatchlistBadge status={entry.watchlist} />
-                             </div>
-                        ) : (
-                             <WatchlistBadge status={entry.watchlist} />
-                        )}
+            <div key={entry.id} className="flex-shrink-0 flex flex-col items-center w-[220px] relative px-2 group">
+                {/* Date */}
+                <span className="text-xs text-gray-500 font-mono mb-2 font-semibold">
+                    {new Date(entry.date).toLocaleDateString('pt-BR')}
+                </span>
 
+                {/* Dot and Line */}
+                <div className="relative w-full flex justify-center items-center mb-3">
+                    <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-200 -z-10"></div>
+                    <div className="w-4 h-4 rounded-full bg-gray-300 border-2 border-white z-0 group-hover:bg-blue-400 transition-colors"></div>
+                </div>
+
+                {/* Content Card */}
+                <div className="flex flex-col items-center gap-2 text-sm bg-gray-50 p-3 rounded-lg border border-gray-100 w-full shadow-sm hover:shadow-md transition-shadow">
+                     {/* Watchlist */}
+                     {statusChanged ? (
+                         <div className="flex items-center gap-1 justify-center w-full">
+                            <WatchlistBadge status={prevStatus} />
+                            <span className="text-gray-400 text-xs">→</span>
+                            <WatchlistBadge status={entry.watchlist} />
+                         </div>
+                    ) : (
+                         <WatchlistBadge status={entry.watchlist} />
+                    )}
+
+                    {/* Ratings & Sentiment Row */}
+                    <div className="flex flex-wrap justify-center gap-2 w-full">
                         {/* Rating Op */}
                         {ratingOpChanged && (
-                            <div className="flex items-center gap-1">
-                                <span className="text-gray-500 text-xs">Op:</span>
-                                <span className="font-mono bg-gray-100 px-1 rounded text-xs text-gray-500">{prevRatingOp}</span>
+                            <div className="flex items-center gap-1 text-xs">
+                                <span className="text-gray-400">Op:</span>
+                                <span className="font-mono bg-white px-1 rounded text-gray-500 border border-gray-200">{prevRatingOp}</span>
                                 <span className="text-gray-400">→</span>
-                                <span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingOperation}</span>
+                                <span className="font-mono bg-white px-1 rounded font-semibold border border-gray-200">{entry.ratingOperation}</span>
                             </div>
                         )}
 
                         {/* Rating Group */}
                         {ratingGroupChanged && (
-                            <div className="flex items-center gap-1">
-                                <span className="text-gray-500 text-xs">Gr:</span>
-                                <span className="font-mono bg-gray-100 px-1 rounded text-xs text-gray-500">{prevRatingGroup}</span>
+                            <div className="flex items-center gap-1 text-xs">
+                                <span className="text-gray-400">Gr:</span>
+                                <span className="font-mono bg-white px-1 rounded text-gray-500 border border-gray-200">{prevRatingGroup}</span>
                                 <span className="text-gray-400">→</span>
-                                <span className="font-mono bg-gray-100 px-1 rounded font-semibold">{entry.ratingGroup}</span>
+                                <span className="font-mono bg-white px-1 rounded font-semibold border border-gray-200">{entry.ratingGroup}</span>
                             </div>
                         )}
-                        
-                        {/* Sentiment Icon */}
-                         <div className={`flex items-center gap-1 ${entry.sentiment === 'Positivo' ? 'text-green-600' : entry.sentiment === 'Negativo' ? 'text-red-600' : 'text-gray-500'}`}>
-                            {entry.sentiment === 'Positivo' && <ArrowUpIcon className="w-3 h-3" />}
-                            {entry.sentiment === 'Neutro' && <ArrowRightIcon className="w-3 h-3" />}
-                            {entry.sentiment === 'Negativo' && <ArrowDownIcon className="w-3 h-3" />}
-                        </div>
+                    </div>
+
+                    {/* Sentiment */}
+                    <div className={`flex items-center gap-1 text-xs font-medium ${entry.sentiment === 'Positivo' ? 'text-green-600' : entry.sentiment === 'Negativo' ? 'text-red-600' : 'text-gray-500'}`}>
+                        {entry.sentiment === 'Positivo' && <ArrowUpIcon className="w-3 h-3" />}
+                        {entry.sentiment === 'Neutro' && <ArrowRightIcon className="w-3 h-3" />}
+                        {entry.sentiment === 'Negativo' && <ArrowDownIcon className="w-3 h-3" />}
+                        {entry.sentiment}
                     </div>
                 </div>
             </div>
@@ -494,12 +500,14 @@ const OperationCard: React.FC<OperationCardProps> = ({ operation, isExpanded, on
 
                                 {/* Timeline of previous events */}
                                 {sortedHistory.length > 1 && (
-                                    <div className="relative pl-4 border-l-2 border-gray-200 space-y-6 ml-2">
-                                        {sortedHistory.slice(1).map((entry, idx) => {
-                                            // idx here is 0-based relative to slice. 
-                                            // Real index in sortedHistory is idx + 1.
-                                            return renderTimelineRow(entry, idx + 1);
-                                        })}
+                                    <div className="mt-6">
+                                        <div className="flex overflow-x-auto pb-4 pt-2 px-2 -mx-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+                                            {sortedHistory.slice(1).map((entry, idx) => {
+                                                // idx here is 0-based relative to slice. 
+                                                // Real index in sortedHistory is idx + 1.
+                                                return renderTimelineItemHorizontal(entry, idx + 1);
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                             </div>
