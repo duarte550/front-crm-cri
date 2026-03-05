@@ -12,129 +12,137 @@ interface CreditReviewsPageProps {
   showToast: (message: string, type: 'success' | 'error') => void;
 }
 
-type SortField = 'name' | 'maturityDate' | 'nextReviewGerencial' | 'nextReviewPolitica';
-type SortDirection = 'asc' | 'desc';
+  type SortField = 'name' | 'maturityDate' | 'nextReviewGerencial' | 'nextReviewPolitica' | 'estimatedDate';
+  type SortDirection = 'asc' | 'desc';
 
-const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpdateOperation, onCompleteReview, apiUrl, showToast }) => {
-  // Filters
-  const [analystFilter, setAnalystFilter] = useState('All');
-  const [areaFilter, setAreaFilter] = useState<'All' | Area>('All');
-  const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
+  const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpdateOperation, onCompleteReview, apiUrl, showToast }) => {
+    // Filters
+    const [analystFilter, setAnalystFilter] = useState('All');
+    const [areaFilter, setAreaFilter] = useState<'All' | Area>('All');
+    const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
+    
+    // Sorting state
+    const [sortConfig, setSortConfig] = useState<{field: SortField, direction: SortDirection}>({
+        field: 'name',
+        direction: 'asc'
+    });
   
-  // Sorting state
-  const [sortConfig, setSortConfig] = useState<{field: SortField, direction: SortDirection}>({
-      field: 'name',
-      direction: 'asc'
-  });
-
-  // In-line editing state
-  const [editingOpId, setEditingOpId] = useState<number | null>(null);
-  const [editingNotes, setEditingNotes] = useState('');
-
-  const analysts = useMemo(() => ['All', ...new Set(operations.map(op => op.responsibleAnalyst))], [operations]);
-
-  const handleSort = (field: SortField) => {
-      setSortConfig(prev => ({
-          field,
-          direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
-      }));
-  };
-
-  const filteredAndSortedOperations = useMemo(() => {
-    let result = operations.filter(op => {
-        if (analystFilter !== 'All' && op.responsibleAnalyst !== analystFilter) return false;
-        if (areaFilter !== 'All' && op.area !== areaFilter) return false;
-        if (dateFilter.start || dateFilter.end) {
-            const gerencialDate = op.nextReviewGerencialTask ? new Date(op.nextReviewGerencialTask.dueDate) : null;
-            const politicaDate = op.nextReviewPoliticaTask ? new Date(op.nextReviewPoliticaTask.dueDate) : null;
-            const startDate = dateFilter.start ? new Date(dateFilter.start) : null;
-            const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-            
-            if(startDate) startDate.setHours(0,0,0,0);
-            if(endDate) endDate.setHours(23,59,59,999);
-            
-            const hasMatchingDate = 
-                (gerencialDate && (!startDate || gerencialDate >= startDate) && (!endDate || gerencialDate <= endDate)) ||
-                (politicaDate && (!startDate || politicaDate >= startDate) && (!endDate || politicaDate <= endDate));
-
-            if (!hasMatchingDate) return false;
-        }
-        return true;
-    });
-
-    // Sort the result
-    result.sort((a, b) => {
-        let valA: any = a[sortConfig.field as keyof Operation];
-        let valB: any = b[sortConfig.field as keyof Operation];
-
-        // Handle nested task dates for sorting
-        if (sortConfig.field === 'nextReviewGerencial') {
-            valA = a.nextReviewGerencialTask ? new Date(a.nextReviewGerencialTask.dueDate).getTime() : 0;
-            valB = b.nextReviewGerencialTask ? new Date(b.nextReviewGerencialTask.dueDate).getTime() : 0;
-        } else if (sortConfig.field === 'nextReviewPolitica') {
-            valA = a.nextReviewPoliticaTask ? new Date(a.nextReviewPoliticaTask.dueDate).getTime() : 0;
-            valB = b.nextReviewPoliticaTask ? new Date(b.nextReviewPoliticaTask.dueDate).getTime() : 0;
-        } else if (sortConfig.field === 'maturityDate') {
-            valA = a.maturityDate ? new Date(a.maturityDate).getTime() : 0;
-            valB = b.maturityDate ? new Date(b.maturityDate).getTime() : 0;
-        } else {
-            valA = (valA || "").toString().toLowerCase();
-            valB = (valB || "").toString().toLowerCase();
-        }
-
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-    });
-
-    return result;
-  }, [operations, analystFilter, areaFilter, dateFilter, sortConfig]);
-
-  const handleStartEditing = (op: Operation) => {
-      setEditingOpId(op.id);
-      setEditingNotes(op.notes || '');
-  };
-
-  const handleCancelEditing = () => {
-      setEditingOpId(null);
-      setEditingNotes('');
-  };
-
-  const handleSaveNote = async () => {
-      if (!editingOpId) return;
-      
-      const opToUpdate = operations.find(op => op.id === editingOpId);
-      if (!opToUpdate) return;
-
-      try {
-        const response = await fetch(`${apiUrl}/api/operation_review_notes`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                operationId: editingOpId,
-                notes: editingNotes,
-                userName: opToUpdate.responsibleAnalyst
-            }),
-            credentials: 'include'
-        });
-        if (!response.ok) throw new Error('Falha ao salvar a observação.');
-
-        const savedNote = await response.json();
+    // In-line editing state
+    const [editingOpId, setEditingOpId] = useState<number | null>(null);
+    const [editingNotes, setEditingNotes] = useState('');
+  
+    const analysts = useMemo(() => ['All', ...new Set(operations.map(op => op.responsibleAnalyst))], [operations]);
+  
+    const handleSort = (field: SortField) => {
+        setSortConfig(prev => ({
+            field,
+            direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+        }));
+    };
+  
+    const filteredAndSortedOperations = useMemo(() => {
+      let result = operations.filter(op => {
+          if (analystFilter !== 'All' && op.responsibleAnalyst !== analystFilter) return false;
+          if (areaFilter !== 'All' && op.area !== areaFilter) return false;
+          if (dateFilter.start || dateFilter.end) {
+              const gerencialDate = op.nextReviewGerencialTask ? new Date(op.nextReviewGerencialTask.dueDate) : null;
+              const politicaDate = op.nextReviewPoliticaTask ? new Date(op.nextReviewPoliticaTask.dueDate) : null;
+              const startDate = dateFilter.start ? new Date(dateFilter.start) : null;
+              const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
+              
+              if(startDate) startDate.setHours(0,0,0,0);
+              if(endDate) endDate.setHours(23,59,59,999);
+              
+              const hasMatchingDate = 
+                  (gerencialDate && (!startDate || gerencialDate >= startDate) && (!endDate || gerencialDate <= endDate)) ||
+                  (politicaDate && (!startDate || politicaDate >= startDate) && (!endDate || politicaDate <= endDate));
+  
+              if (!hasMatchingDate) return false;
+          }
+          return true;
+      });
+  
+      // Sort the result
+      result.sort((a, b) => {
+          let valA: any = a[sortConfig.field as keyof Operation];
+          let valB: any = b[sortConfig.field as keyof Operation];
+  
+          // Handle nested task dates for sorting
+          if (sortConfig.field === 'nextReviewGerencial') {
+              valA = a.nextReviewGerencialTask ? new Date(a.nextReviewGerencialTask.dueDate).getTime() : 0;
+              valB = b.nextReviewGerencialTask ? new Date(b.nextReviewGerencialTask.dueDate).getTime() : 0;
+          } else if (sortConfig.field === 'nextReviewPolitica') {
+              valA = a.nextReviewPoliticaTask ? new Date(a.nextReviewPoliticaTask.dueDate).getTime() : 0;
+              valB = b.nextReviewPoliticaTask ? new Date(b.nextReviewPoliticaTask.dueDate).getTime() : 0;
+          } else if (sortConfig.field === 'maturityDate') {
+              valA = a.maturityDate ? new Date(a.maturityDate).getTime() : 0;
+              valB = b.maturityDate ? new Date(b.maturityDate).getTime() : 0;
+          } else if (sortConfig.field === 'estimatedDate') {
+              valA = a.estimatedDate ? new Date(a.estimatedDate).getTime() : 0;
+              valB = b.estimatedDate ? new Date(b.estimatedDate).getTime() : 0;
+          } else {
+              valA = (valA || "").toString().toLowerCase();
+              valB = (valB || "").toString().toLowerCase();
+          }
+  
+          if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+          if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+          return 0;
+      });
+  
+      return result;
+    }, [operations, analystFilter, areaFilter, dateFilter, sortConfig]);
+  
+    const handleStartEditing = (op: Operation) => {
+        setEditingOpId(op.id);
+        setEditingNotes(op.notes || '');
+    };
+  
+    const handleCancelEditing = () => {
+        setEditingOpId(null);
+        setEditingNotes('');
+    };
+  
+    const handleSaveNote = async () => {
+        if (!editingOpId) return;
         
-        // Optimistic UI update
-        const updatedOperation = { ...opToUpdate, notes: savedNote.notes };
+        const opToUpdate = operations.find(op => op.id === editingOpId);
+        if (!opToUpdate) return;
+  
+        try {
+          const response = await fetch(`${apiUrl}/api/operation_review_notes`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  operationId: editingOpId,
+                  notes: editingNotes,
+                  userName: opToUpdate.responsibleAnalyst
+              }),
+              credentials: 'include'
+          });
+          if (!response.ok) throw new Error('Falha ao salvar a observação.');
+  
+          const savedNote = await response.json();
+          
+          // Optimistic UI update
+          const updatedOperation = { ...opToUpdate, notes: savedNote.notes };
+          onUpdateOperation(updatedOperation);
+  
+          showToast('Observação salva com sucesso!', 'success');
+        } catch (error) {
+            console.error(error);
+            showToast('Erro ao salvar observação.', 'error');
+        } finally {
+            handleCancelEditing();
+        }
+    };
+
+    const handleEstimatedDateChange = (op: Operation, newDate: string) => {
+        const updatedOperation = { ...op, estimatedDate: newDate };
         onUpdateOperation(updatedOperation);
-
-        showToast('Observação salva com sucesso!', 'success');
-      } catch (error) {
-          console.error(error);
-          showToast('Erro ao salvar observação.', 'error');
-      } finally {
-          handleCancelEditing();
-      }
-  };
-
-  const getStatusBadge = (dueDate: string) => {
+    };
+  
+    const getStatusBadge = (dueDate: string) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const due = new Date(dueDate);
@@ -227,6 +235,12 @@ const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpd
                         >
                             Próx. Rev. Política <SortIcon field="nextReviewPolitica" />
                         </th>
+                        <th 
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => handleSort('estimatedDate')}
+                        >
+                            Data Estimada <SortIcon field="estimatedDate" />
+                        </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">Observações</th>
                     </tr>
@@ -255,6 +269,14 @@ const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpd
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     <ReviewInfoCell task={politicaTask} />
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <input 
+                                        type="date" 
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500 block w-full"
+                                        value={op.estimatedDate ? op.estimatedDate.split('T')[0] : ''}
+                                        onChange={(e) => handleEstimatedDateChange(op, e.target.value)}
+                                    />
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {taskForCompletion ? (
