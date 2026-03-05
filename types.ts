@@ -60,8 +60,8 @@ export interface Task {
   notes?: string;
 }
 
-export type Rating = 'A4' | 'Baa1' | 'Baa3' | 'Baa4' | 'Ba1' | 'Ba4' | 'Ba5' | 'Ba6' | 'B1' | 'B2' | 'B3' | 'C1' | 'C2' | 'C3';
-export const ratingOptions: Rating[] = ['A4', 'Baa1', 'Baa3', 'Baa4', 'Ba1', 'Ba4', 'Ba5', 'Ba6', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'];
+export type Rating = 'A4' | 'Baa1' | 'Baa3' | 'Baa4' | 'Ba1' | 'Ba4' | 'Ba5' | 'Ba6' | 'B1' | 'B2' | 'B3' | 'B4' | 'C1' | 'C2' | 'C3';
+export const ratingOptions: Rating[] = ['A4', 'Baa1', 'Baa3', 'Baa4', 'Ba1', 'Ba4', 'Ba5', 'Ba6', 'B1', 'B2', 'B3','B4', 'C1', 'C2', 'C3'];
 
 export enum WatchlistStatus {
   VERDE = 'Verde',
@@ -127,6 +127,7 @@ export interface Operation {
   nextReviewGerencialTask?: Task | null;
   nextReviewPoliticaTask?: Task | null;
   notes?: string;
+  estimatedDate?: string; // ISO string
 }
 
 export interface AuditLog {
