@@ -11,6 +11,7 @@ import Modal from './Modal';
 import AdHocTaskForm from './AdHocTaskForm';
 import RatingHistoryChart from './RatingHistoryChart';
 import EventHistory from './EventHistory';
+import OperationForm from './OperationForm';
 
 interface OperationDetailProps {
   operation: Operation;
@@ -57,6 +58,7 @@ const OperationDetail: React.FC<OperationDetailProps> = ({ operation, onUpdateOp
     const [eventToEdit, setEventToEdit] = useState<Event | null>(null);
     const [isWatchlistFormOpen, setIsWatchlistFormOpen] = useState(false);
     const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
+    const [isEditOperationFormOpen, setIsEditOperationFormOpen] = useState(false);
     
     const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
     const [reviewTaskToComplete, setReviewTaskToComplete] = useState<Task | null>(null);
@@ -329,6 +331,11 @@ ${event.nextSteps || 'Nenhum'}
             }
         }
     }
+
+    const handleSaveEditedOperation = (updatedData: Operation) => {
+        onUpdateOperation(updatedData);
+        setIsEditOperationFormOpen(false);
+    };
     
     const watchlistColorClasses = {
       [WatchlistStatus.VERDE]: 'bg-green-500 text-white hover:bg-green-600',
@@ -361,6 +368,13 @@ ${event.nextSteps || 'Nenhum'}
                     operation={operation}
                     onClose={() => setIsReviewFormOpen(false)}
                     onSave={handleSaveReview}
+                />
+            )}
+            {isEditOperationFormOpen && (
+                <OperationForm
+                    onClose={() => setIsEditOperationFormOpen(false)}
+                    onSave={handleSaveEditedOperation}
+                    initialData={operation}
                 />
             )}
             {ruleToEdit && (
@@ -439,7 +453,12 @@ ${event.nextSteps || 'Nenhum'}
 
             <div className="bg-white p-6 rounded-lg shadow-lg">
                 <div className="flex justify-between items-start mb-4">
-                    <h2 className="text-2xl font-bold text-gray-800">{operation.name}</h2>
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-2xl font-bold text-gray-800">{operation.name}</h2>
+                        <button onClick={() => setIsEditOperationFormOpen(true)} className="text-gray-400 hover:text-blue-600" title="Editar Operação">
+                            <PencilIcon className="w-5 h-5" />
+                        </button>
+                    </div>
                     <button onClick={() => setIsWatchlistFormOpen(true)} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors duration-200 ${watchlistColorClasses[currentWatchlistStatus]}`}>
                         <BellIcon className="w-5 h-5"/> Alterar Watchlist / Rating
                     </button>
@@ -450,6 +469,7 @@ ${event.nextSteps || 'Nenhum'}
                     <InfoCard title="Garantias">{operation.guarantees.map(g => g.name).join(', ')}</InfoCard>
                     <InfoCard title="Segmento">{operation.segmento}</InfoCard>
                     <InfoCard title="Vencimento" highlight>{operation.maturityDate ? new Date(operation.maturityDate).toLocaleDateString('pt-BR') : 'N/A'}</InfoCard>
+                    <InfoCard title="Analista">{operation.responsibleAnalyst}</InfoCard>
                 </div>
             </div>
 
