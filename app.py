@@ -697,6 +697,8 @@ def serve_react_app(path):
     else:
         return send_from_directory(os.path.join(os.path.dirname(__file__), '..'), 'index.html')
 
+print("Starting application... (Step 7: All Loaded)") # Debug log
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 3000))
     print(f"Running app on port {port}")
