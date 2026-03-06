@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import type { DefaultMonitoring, Rating, Area } from '../types';
+import React, { useState, useEffect } from 'react';
+import type { DefaultMonitoring, Rating, Area, Operation } from '../types';
 import { WatchlistStatus, ratingOptions, segmentoOptions, areaOptions } from '../types';
 import Modal from './Modal';
 import { Label, Input, Select, FormRow } from './UI';
@@ -8,6 +8,7 @@ import { Label, Input, Select, FormRow } from './UI';
 interface OperationFormProps {
   onClose: () => void;
   onSave: (operationData: any) => void;
+  initialData?: Operation;
 }
 
 const defaultMonitoringInitial: DefaultMonitoring = {
@@ -34,23 +35,30 @@ const Checkbox: React.FC<CheckboxProps> = ({ name, label, checked, onChange }) =
 );
 
 
-const OperationForm: React.FC<OperationFormProps> = ({ onClose, onSave }) => {
-  const [name, setName] = useState('');
-  const [area, setArea] = useState<Area>('CRI');
-  const [projects, setProjects] = useState('');
-  const [operationType, setOperationType] = useState('CRI');
-  const [guarantees, setGuarantees] = useState('');
-  const [maturityDate, setMaturityDate] = useState('');
-  const [responsibleAnalyst, setResponsibleAnalyst] = useState('');
-  const [reviewFrequency, setReviewFrequency] = useState('Trimestral');
-  const [callFrequency, setCallFrequency] = useState('Mensal');
-  const [dfFrequency, setDfFrequency] = useState('Trimestral');
-  const [segmento, setSegmento] = useState(segmentoOptions[0]);
-  const [defaultMonitoring, setDefaultMonitoring] = useState<DefaultMonitoring>(defaultMonitoringInitial);
+const OperationForm: React.FC<OperationFormProps> = ({ onClose, onSave, initialData }) => {
+  const [name, setName] = useState(initialData?.name || '');
+  const [area, setArea] = useState<Area>(initialData?.area || 'CRI');
+  const [projects, setProjects] = useState(initialData?.projects.map(p => p.name).join(', ') || '');
+  const [operationType, setOperationType] = useState(initialData?.operationType || 'CRI');
+  const [guarantees, setGuarantees] = useState(initialData?.guarantees.map(g => g.name).join(', ') || '');
+  
+  // Format date for input type="date" (YYYY-MM-DD)
+  const formatDate = (isoDate?: string | null) => {
+      if (!isoDate) return '';
+      return new Date(isoDate).toISOString().split('T')[0];
+  };
 
-  const [ratingOperation, setRatingOperation] = useState<Rating>('Baa3');
-  const [ratingGroup, setRatingGroup] = useState<Rating>('Baa1');
-  const [watchlist, setWatchlist] = useState<WatchlistStatus>(WatchlistStatus.VERDE);
+  const [maturityDate, setMaturityDate] = useState(formatDate(initialData?.maturityDate));
+  const [responsibleAnalyst, setResponsibleAnalyst] = useState(initialData?.responsibleAnalyst || '');
+  const [reviewFrequency, setReviewFrequency] = useState(initialData?.reviewFrequency || 'Trimestral');
+  const [callFrequency, setCallFrequency] = useState(initialData?.callFrequency || 'Mensal');
+  const [dfFrequency, setDfFrequency] = useState(initialData?.dfFrequency || 'Trimestral');
+  const [segmento, setSegmento] = useState(initialData?.segmento || segmentoOptions[0]);
+  const [defaultMonitoring, setDefaultMonitoring] = useState<DefaultMonitoring>(initialData?.defaultMonitoring || defaultMonitoringInitial);
+
+  const [ratingOperation, setRatingOperation] = useState<Rating>(initialData?.ratingOperation || 'Baa3');
+  const [ratingGroup, setRatingGroup] = useState<Rating>(initialData?.ratingGroup || 'Baa1');
+  const [watchlist, setWatchlist] = useState<WatchlistStatus>(initialData?.watchlist || WatchlistStatus.VERDE);
 
   const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = event.target;
@@ -60,6 +68,7 @@ const OperationForm: React.FC<OperationFormProps> = ({ onClose, onSave }) => {
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const newOperationData = {
+      ...initialData, // Keep existing ID and other fields if editing
       name,
       area,
       projects: projects.split(',').map((p, i) => ({ id: i, name: p.trim() })).filter(p => p.name),
@@ -75,14 +84,14 @@ const OperationForm: React.FC<OperationFormProps> = ({ onClose, onSave }) => {
       ratingOperation,
       ratingGroup,
       watchlist,
-      covenants: { ltv: null, dscr: null }, 
+      covenants: initialData?.covenants || { ltv: null, dscr: null }, 
     };
     onSave(newOperationData);
     onClose();
   };
   
   return (
-    <Modal isOpen={true} onClose={onClose} title="Adicionar Nova Operação">
+    <Modal isOpen={true} onClose={onClose} title={initialData ? "Editar Operação" : "Adicionar Nova Operação"}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormRow>
           <div>
