@@ -145,70 +145,74 @@ const OperationForm: React.FC<OperationFormProps> = ({ onClose, onSave, initialD
             </div>
         </FormRow>
 
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-                <Label htmlFor="ratingOperation">Rating Operação</Label>
-                <Select id="ratingOperation" value={ratingOperation} onChange={e => setRatingOperation(e.target.value as Rating)}>
-                    {ratingOptions.map(r => <option key={r} value={r}>{r}</option>)}
-                </Select>
-            </div>
-            <div>
-                <Label htmlFor="ratingGroup">Rating Grupo Econômico</Label>
-                <Select id="ratingGroup" value={ratingGroup} onChange={e => setRatingGroup(e.target.value as Rating)}>
-                    {ratingOptions.map(r => <option key={r} value={r}>{r}</option>)}
-                </Select>
-            </div>
-            <div>
-                <Label htmlFor="watchlist">Farol Watchlist</Label>
-                <Select id="watchlist" value={watchlist} onChange={e => setWatchlist(e.target.value as WatchlistStatus)}>
-                    {Object.values(WatchlistStatus).map(w => <option key={w} value={w}>{w}</option>)}
-                </Select>
-            </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-                <Label htmlFor="reviewFrequency">Frequência de Revisão</Label>
-                <Select id="reviewFrequency" value={reviewFrequency} onChange={e => setReviewFrequency(e.target.value)}>
-                    <option>Mensal</option>
-                    <option>Trimestral</option>
-                    <option>Semestral</option>
-                    <option>Anual</option>
-                </Select>
-            </div>
-            <div>
-                <Label htmlFor="callFrequency">Frequência de Calls</Label>
-                <Select id="callFrequency" value={callFrequency} onChange={e => setCallFrequency(e.target.value)}>
-                    <option>Semanal</option>
-                    <option>Quinzenal</option>
-                    <option>Mensal</option>
-                    <option>Trimestral</option>
-                    <option>Semestral</option>
-                </Select>
-            </div>
-            <div>
-                <Label htmlFor="dfFrequency">Frequência DFs & Dívida</Label>
-                <Select id="dfFrequency" value={dfFrequency} onChange={e => setDfFrequency(e.target.value)}>
-                    <option>Mensal</option>
-                    <option>Trimestral</option>
-                    <option>Semestral</option>
-                    <option>Anual</option>
-                </Select>
-            </div>
-        </div>
-        
-        <div>
-            <Label htmlFor="">Monitoramentos Padrão</Label>
-            <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-4 p-4 border rounded-md">
-                <Checkbox name="news" label="Monitorar Notícias" checked={defaultMonitoring.news} onChange={handleCheckboxChange} />
-                <Checkbox name="fiiReport" label="Verificar Relatório FII" checked={defaultMonitoring.fiiReport} onChange={handleCheckboxChange} />
-                <Checkbox name="operationalInfo" label="Info Operacional" checked={defaultMonitoring.operationalInfo} onChange={handleCheckboxChange} />
-                <Checkbox name="receivablesPortfolio" label="Carteira de Recebíveis" checked={defaultMonitoring.receivablesPortfolio} onChange={handleCheckboxChange} />
-                <Checkbox name="monthlyConstructionReport" label="Relatório Mensal de Obra" checked={defaultMonitoring.monthlyConstructionReport} onChange={handleCheckboxChange} />
-                <Checkbox name="monthlyCommercialInfo" label="Info Comercial Mensal" checked={defaultMonitoring.monthlyCommercialInfo} onChange={handleCheckboxChange} />
-                <Checkbox name="speDfs" label="DFs da SPE" checked={defaultMonitoring.speDfs} onChange={handleCheckboxChange} />
-            </div>
-        </div>
+         {!initialData && (
+            <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <Label htmlFor="ratingOperation">Rating Operação</Label>
+                        <Select id="ratingOperation" value={ratingOperation} onChange={e => setRatingOperation(e.target.value as Rating)}>
+                            {ratingOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                        </Select>
+                    </div>
+                    <div>
+                        <Label htmlFor="ratingGroup">Rating Grupo Econômico</Label>
+                        <Select id="ratingGroup" value={ratingGroup} onChange={e => setRatingGroup(e.target.value as Rating)}>
+                            {ratingOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                        </Select>
+                    </div>
+                    <div>
+                        <Label htmlFor="watchlist">Farol Watchlist</Label>
+                        <Select id="watchlist" value={watchlist} onChange={e => setWatchlist(e.target.value as WatchlistStatus)}>
+                            {Object.values(WatchlistStatus).map(w => <option key={w} value={w}>{w}</option>)}
+                        </Select>
+                    </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <Label htmlFor="reviewFrequency">Frequência de Revisão</Label>
+                        <Select id="reviewFrequency" value={reviewFrequency} onChange={e => setReviewFrequency(e.target.value)}>
+                            <option>Mensal</option>
+                            <option>Trimestral</option>
+                            <option>Semestral</option>
+                            <option>Anual</option>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label htmlFor="callFrequency">Frequência de Calls</Label>
+                        <Select id="callFrequency" value={callFrequency} onChange={e => setCallFrequency(e.target.value)}>
+                            <option>Semanal</option>
+                            <option>Quinzenal</option>
+                            <option>Mensal</option>
+                            <option>Trimestral</option>
+                            <option>Semestral</option>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label htmlFor="dfFrequency">Frequência DFs & Dívida</Label>
+                        <Select id="dfFrequency" value={dfFrequency} onChange={e => setDfFrequency(e.target.value)}>
+                            <option>Mensal</option>
+                            <option>Trimestral</option>
+                            <option>Semestral</option>
+                            <option>Anual</option>
+                        </Select>
+                    </div>
+                </div>
+                
+                <div>
+                    <Label htmlFor="">Monitoramentos Padrão</Label>
+                    <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-4 p-4 border rounded-md">
+                        <Checkbox name="news" label="Monitorar Notícias" checked={defaultMonitoring.news} onChange={handleCheckboxChange} />
+                        <Checkbox name="fiiReport" label="Verificar Relatório FII" checked={defaultMonitoring.fiiReport} onChange={handleCheckboxChange} />
+                        <Checkbox name="operationalInfo" label="Info Operacional" checked={defaultMonitoring.operationalInfo} onChange={handleCheckboxChange} />
+                        <Checkbox name="receivablesPortfolio" label="Carteira de Recebíveis" checked={defaultMonitoring.receivablesPortfolio} onChange={handleCheckboxChange} />
+                        <Checkbox name="monthlyConstructionReport" label="Relatório Mensal de Obra" checked={defaultMonitoring.monthlyConstructionReport} onChange={handleCheckboxChange} />
+                        <Checkbox name="monthlyCommercialInfo" label="Info Comercial Mensal" checked={defaultMonitoring.monthlyCommercialInfo} onChange={handleCheckboxChange} />
+                        <Checkbox name="speDfs" label="DFs da SPE" checked={defaultMonitoring.speDfs} onChange={handleCheckboxChange} />
+                    </div>
+                </div>
+            </>
+         )}
 
         <div className="flex justify-end gap-4 pt-4">
           <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancelar</button>
