@@ -16,7 +16,7 @@ import CreditReviewsPage from './components/CreditReviewsPage';
 import ReviewCompletionForm from './components/ReviewCompletionForm';
 import Toast from './components/Toast';
 
-const API_BASE_URL = 'https://crmcri-flask.onrender.com';
+const API_BASE_URL = '';
 
 const App: React.FC = () => {
   const [operations, setOperations] = useState<Operation[]>([]);
@@ -38,7 +38,7 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null); 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/operations`, { credentials: 'include' });
+      const response = await fetch(`${API_BASE_URL}/api/operations?summary=true`, { credentials: 'include' });
       if (!response.ok) {
         throw new Error(`O servidor respondeu com o status: ${response.status}`);
       }
@@ -55,6 +55,20 @@ const App: React.FC = () => {
       setIsLoading(false);
     }
   }, []);
+
+  const fetchOperationDetails = async (operationId: number) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/operations/${operationId}`, { credentials: 'include' });
+        if (!response.ok) throw new Error('Falha ao carregar detalhes da operação');
+        const fullOperation = await response.json();
+        
+        setOperations(prev => prev.map(op => op.id === operationId ? fullOperation : op));
+        return fullOperation;
+    } catch (error) {
+        console.error("Error fetching operation details:", error);
+        showToast('Erro ao carregar detalhes da operação.', 'error');
+    }
+  };
 
   useEffect(() => {
     fetchOperations();
@@ -116,9 +130,16 @@ const App: React.FC = () => {
     }
   };
 
-  const handleNavigate = (page: Page, operationId?: number) => {
+  const handleNavigate = async (page: Page, operationId?: number) => {
     setCurrentPage(page);
     setSelectedOperationId(operationId ?? null);
+    
+    if (page === Page.DETAIL && operationId) {
+        const op = operations.find(o => o.id === operationId);
+        if (op && (!op.tasks || op.tasks.length === 0)) {
+             await fetchOperationDetails(operationId);
+        }
+    }
   };
   
   const handleAddOperation = async (newOperationData: any) => {
