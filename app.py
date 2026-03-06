@@ -1,5 +1,6 @@
 
 import os
+print("Starting application...") # Debug log for startup
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from db import get_db_connection
@@ -12,6 +13,7 @@ import logging
 # Configurações básicas de logging
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), '..'), static_url_path='')
 logging.basicConfig(level=logging.INFO)
+app.logger.info("Application initialized")
 
 # Configuração de CORS para permitir requisições de qualquer origem.
 CORS(app, supports_credentials=True)
@@ -299,7 +301,10 @@ def manage_operations_collection():
                 data['reviewFrequency'] = gerencial_freq
 
                 dm = data.get('defaultMonitoring', {})
-                cursor.execute( "INSERT INTO cri_cra_dev.crm.operations (name, area, operation_type, maturity_date, responsible_analyst, review_frequency, call_frequency, df_frequency, segmento, rating_operation, rating_group, watchlist, ltv, dscr, monitoring_news, monitoring_fii_report, monitoring_operational_info, monitoring_receivables_portfolio, monitoring_construction_report, monitoring_commercial_info, monitoring_spe_dfs, estimated_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (data['name'], data['area'], data['operationType'], data['maturityDate'], data['responsibleAnalyst'], data['reviewFrequency'], data['callFrequency'], data['dfFrequency'], data['segmento'], data['ratingOperation'], data['ratingGroup'], data['watchlist'], data.get('covenants', {}).get('ltv'), data.get('covenants', {}).get('dscr'), dm.get('news'), dm.get('fiiReport'), dm.get('operationalInfo'), dm.get('receivablesPortfolio'), dm.get('monthlyConstructionReport'), dm.get('monthlyCommercialInfo'), dm.get('speDfs'), data.get('estimatedDate')) )
+                est_date = data.get('estimatedDate')
+                if est_date == "": est_date = None
+                
+                cursor.execute( "INSERT INTO cri_cra_dev.crm.operations (name, area, operation_type, maturity_date, responsible_analyst, review_frequency, call_frequency, df_frequency, segmento, rating_operation, rating_group, watchlist, ltv, dscr, monitoring_news, monitoring_fii_report, monitoring_operational_info, monitoring_receivables_portfolio, monitoring_construction_report, monitoring_commercial_info, monitoring_spe_dfs, estimated_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (data['name'], data['area'], data['operationType'], data['maturityDate'], data['responsibleAnalyst'], data['reviewFrequency'], data['callFrequency'], data['dfFrequency'], data['segmento'], data['ratingOperation'], data['ratingGroup'], data['watchlist'], data.get('covenants', {}).get('ltv'), data.get('covenants', {}).get('dscr'), dm.get('news'), dm.get('fiiReport'), dm.get('operationalInfo'), dm.get('receivablesPortfolio'), dm.get('monthlyConstructionReport'), dm.get('monthlyCommercialInfo'), dm.get('speDfs'), est_date) )
                 cursor.execute("SELECT id FROM cri_cra_dev.crm.operations WHERE name = ? ORDER BY id DESC LIMIT 1", (data['name'],))
                 new_op_id = cursor.fetchone().id
                 
@@ -389,7 +394,14 @@ def manage_operation(op_id):
                         log_action(cursor, data.get('responsibleAnalyst', 'System'), 'UPDATE', 'TaskRule', op_id, f"Frequência da Revisão Gerencial ajustada para {new_politica_freq}.")
 
                 cov = data.get('covenants', {})
-                cursor.execute( "UPDATE cri_cra_dev.crm.operations SET name = ?, area = ?, rating_operation = ?, rating_group = ?, watchlist = ?, ltv = ?, dscr = ?, estimated_date = ? WHERE id = ?", (data.get('name', old_op_db.get('name')), data.get('area', old_op_db.get('area')), data.get('ratingOperation', old_op_db.get('rating_operation')), new_rating_group, data.get('watchlist', old_op_db.get('watchlist')), cov.get('ltv', old_op_db.get('ltv')), cov.get('dscr', old_op_db.get('dscr')), data.get('estimatedDate', old_op_db.get('estimated_date')), op_id) )
+                
+                est_date_val = data.get('estimatedDate')
+                if est_date_val == "": est_date_val = None
+                
+                # If estimatedDate is not in data, use old value. If it is in data (even if None), use it.
+                final_est_date = est_date_val if 'estimatedDate' in data else old_op_db.get('estimated_date')
+
+                cursor.execute( "UPDATE cri_cra_dev.crm.operations SET name = ?, area = ?, rating_operation = ?, rating_group = ?, watchlist = ?, ltv = ?, dscr = ?, estimated_date = ? WHERE id = ?", (data.get('name', old_op_db.get('name')), data.get('area', old_op_db.get('area')), data.get('ratingOperation', old_op_db.get('rating_operation')), new_rating_group, data.get('watchlist', old_op_db.get('watchlist')), cov.get('ltv', old_op_db.get('ltv')), cov.get('dscr', old_op_db.get('dscr')), final_est_date, op_id) )
                 
                 cursor.execute("DELETE FROM cri_cra_dev.crm.operation_projects WHERE operation_id = ?", (op_id,))
                 for project in data.get('projects', []):
@@ -679,3 +691,8 @@ def serve_react_app(path):
         return send_from_directory(os.path.join(os.path.dirname(__file__), '..'), path)
     else:
         return send_from_directory(os.path.join(os.path.dirname(__file__), '..'), 'index.html')
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 3000))
+    print(f"Running app on port {port}")
+    app.run(host='0.0.0.0', port=port)
