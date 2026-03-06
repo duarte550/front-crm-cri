@@ -16,33 +16,13 @@ logging.basicConfig(level=logging.INFO)
 # Configuração de CORS para permitir requisições de qualquer origem.
 CORS(app, supports_credentials=True)
 
-def check_and_update_schema():
-    conn = None
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cursor:
-            cursor.execute("DESCRIBE cri_cra_dev.crm.operations")
-            columns = [row.col_name for row in cursor.fetchall()]
-            if 'estimated_date' not in columns:
-                app.logger.info("Adding estimated_date column to operations table...")
-                cursor.execute("ALTER TABLE cri_cra_dev.crm.operations ADD COLUMN estimated_date TIMESTAMP COMMENT 'Data estimada para revisão ou conclusão.'")
-                conn.commit()
-                app.logger.info("Column estimated_date added successfully.")
-    except Exception as e:
-        app.logger.error(f"Schema update failed: {e}")
-    finally:
-        if conn: conn.close()
-
-# Run schema check on startup
-check_and_update_schema()
-
 # Regras de negócio centralizadas
 RATING_TO_POLITICA_FREQUENCY = {
     # Anual (Melhor que B1)
     'A4': 'Anual', 'Baa1': 'Anual', 'Baa3': 'Anual', 'Baa4': 'Anual',
     'Ba1': 'Anual', 'Ba4': 'Anual', 'Ba5': 'Anual', 'Ba6': 'Anual',
     # Semestral (B1 ou pior)
-    'B1': 'Semestral', 'B2': 'Semestral', 'B3': 'Semestral',
+    'B1': 'Semestral', 'B2': 'Semestral', 'B3': 'Semestral', 'B4': 'Semestral',
     'C1': 'Semestral', 'C2': 'Semestral', 'C3': 'Semestral',
 }
 
@@ -97,7 +77,7 @@ def fetch_full_operation(cursor, operation_id):
         'id': operation_db['id'], 'name': operation_db['name'], 'area': operation_db['area'],
         'operationType': operation_db['operation_type'],
         'maturityDate': operation_db['maturity_date'].isoformat() if operation_db.get('maturity_date') else None,
-        'estimatedDate': operation_db['estimated_date'].isoformat() if operation_db.get('estimated_date') else None,
+        'estimatedDate': operation_db.get('estimated_date').isoformat() if operation_db.get('estimated_date') else None,
         'responsibleAnalyst': operation_db['responsible_analyst'], 'reviewFrequency': operation_db['review_frequency'],
         'callFrequency': operation_db['call_frequency'], 'dfFrequency': operation_db['df_frequency'],
         'segmento': operation_db['segmento'], 'ratingOperation': operation_db['rating_operation'],
@@ -222,7 +202,7 @@ def manage_operations_collection():
                         'id': op_id, 'name': op_db['name'], 'area': op_db['area'],
                         'operationType': op_db['operation_type'],
                         'maturityDate': op_db['maturity_date'].isoformat() if op_db.get('maturity_date') else None,
-                        'estimatedDate': op_db['estimated_date'].isoformat() if op_db.get('estimated_date') else None,
+                        'estimatedDate': op_db.get('estimated_date').isoformat() if op_db.get('estimated_date') else None,
                         'responsibleAnalyst': op_db['responsible_analyst'], 'reviewFrequency': op_db['review_frequency'],
                         'callFrequency': op_db['call_frequency'], 'dfFrequency': op_db['df_frequency'],
                         'segmento': op_db['segmento'], 'ratingOperation': op_db['rating_operation'],
