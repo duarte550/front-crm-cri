@@ -179,7 +179,6 @@ def fetch_full_operation(cursor, operation_id):
 def manage_operations_collection():
     conn = get_db_connection()
     if request.method == 'GET':
-        summary_mode = request.args.get('summary') == 'true'
         try:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT * FROM cri_cra_dev.crm.operations ORDER BY name")
@@ -187,14 +186,15 @@ def manage_operations_collection():
                 if not db_operations: return jsonify([])
 
                 notes_map = {}
-                if not summary_mode:
-                    try:
-                        cursor.execute("SELECT operation_id, notes FROM cri_cra_dev.crm.operation_review_notes")
-                        for row in cursor.fetchall():
-                            notes_map[row.operation_id] = row.notes
-                    except Exception as e:
-                        if "TABLE_OR_VIEW_NOT_FOUND" in str(e):
-                            app.logger.warning("Tabela 'operation_review_notes' não encontrada.")
+                try:
+                    cursor.execute("SELECT operation_id, notes FROM cri_cra_dev.crm.operation_review_notes")
+                    for row in cursor.fetchall():
+                        notes_map[row.operation_id] = row.notes
+                except Exception as e:
+                    if "TABLE_OR_VIEW_NOT_FOUND" in str(e):
+                        app.logger.warning("Tabela 'operation_review_notes' não encontrada. Pulando campo de notas para todas as operações.")
+                    else:
+                        raise e
 
                 operations_map = {}
                 for op_db in db_operations:
@@ -225,17 +225,11 @@ def manage_operations_collection():
                 op_ids = list(operations_map.keys())
                 placeholders = ', '.join(['?'] * len(op_ids))
                 
-                if not summary_mode:
-                    cursor.execute(f"SELECT op.operation_id, p.id, p.name FROM cri_cra_dev.crm.projects p JOIN cri_cra_dev.crm.operation_projects op ON p.id = op.project_id WHERE op.operation_id IN ({placeholders})", op_ids)
-                    for row in cursor.fetchall(): operations_map[row.operation_id]['projects'].append({'id': row.id, 'name': row.name})
+                cursor.execute(f"SELECT op.operation_id, p.id, p.name FROM cri_cra_dev.crm.projects p JOIN cri_cra_dev.crm.operation_projects op ON p.id = op.project_id WHERE op.operation_id IN ({placeholders})", op_ids)
+                for row in cursor.fetchall(): operations_map[row.operation_id]['projects'].append({'id': row.id, 'name': row.name})
 
-                    cursor.execute(f"SELECT og.operation_id, g.id, g.name FROM cri_cra_dev.crm.guarantees g JOIN cri_cra_dev.crm.operation_guarantees og ON g.id = og.guarantee_id WHERE og.operation_id IN ({placeholders})", op_ids)
-                    for row in cursor.fetchall(): operations_map[row.operation_id]['guarantees'].append({'id': row.id, 'name': row.name})
-
-                    cursor.execute(f"SELECT * FROM cri_cra_dev.crm.rating_history WHERE operation_id IN ({placeholders}) ORDER BY date DESC", op_ids)
-                    for row in cursor.fetchall():
-                        rh_db = format_row(row, cursor)
-                        operations_map[row.operation_id]['ratingHistory'].append({ 'id': rh_db.get('id'), 'date': rh_db.get('date').isoformat() if rh_db.get('date') else None, 'ratingOperation': rh_db.get('rating_operation'), 'ratingGroup': rh_db.get('rating_group'), 'watchlist': rh_db.get('watchlist'), 'sentiment': rh_db.get('sentiment'), 'eventId': rh_db.get('event_id') })
+                cursor.execute(f"SELECT og.operation_id, g.id, g.name FROM cri_cra_dev.crm.guarantees g JOIN cri_cra_dev.crm.operation_guarantees og ON g.id = og.guarantee_id WHERE og.operation_id IN ({placeholders})", op_ids)
+                for row in cursor.fetchall(): operations_map[row.operation_id]['guarantees'].append({'id': row.id, 'name': row.name})
 
                 cursor.execute(f"SELECT * FROM cri_cra_dev.crm.events WHERE operation_id IN ({placeholders}) ORDER BY date DESC", op_ids)
                 for row in cursor.fetchall():
@@ -246,6 +240,11 @@ def manage_operations_collection():
                 for row in cursor.fetchall():
                     rule_db = format_row(row, cursor)
                     operations_map[row.operation_id]['taskRules'].append({ 'id': rule_db.get('id'), 'name': rule_db.get('name'), 'frequency': rule_db.get('frequency'), 'startDate': rule_db.get('start_date').isoformat() if rule_db.get('start_date') else None, 'endDate': rule_db.get('end_date').isoformat() if rule_db.get('end_date') else None, 'description': rule_db.get('description') })
+
+                cursor.execute(f"SELECT * FROM cri_cra_dev.crm.rating_history WHERE operation_id IN ({placeholders}) ORDER BY date DESC", op_ids)
+                for row in cursor.fetchall():
+                    rh_db = format_row(row, cursor)
+                    operations_map[row.operation_id]['ratingHistory'].append({ 'id': rh_db.get('id'), 'date': rh_db.get('date').isoformat() if rh_db.get('date') else None, 'ratingOperation': rh_db.get('rating_operation'), 'ratingGroup': rh_db.get('rating_group'), 'watchlist': rh_db.get('watchlist'), 'sentiment': rh_db.get('sentiment'), 'eventId': rh_db.get('event_id') })
 
                 cursor.execute(f"SELECT operation_id, task_id FROM cri_cra_dev.crm.task_exceptions WHERE operation_id IN ({placeholders})", op_ids)
                 exceptions_by_op = defaultdict(set)
@@ -259,7 +258,7 @@ def manage_operations_collection():
                                 rule['endDate'] = maturity_date_iso
 
                     tasks = generate_tasks_for_operation(op, exceptions_by_op.get(op_id, set()))
-                    
+                    op['tasks'] = tasks
                     op['overdueCount'] = sum(1 for task in tasks if task['status'] == 'Atrasada')
 
                     maturity_date_obj = datetime.fromisoformat(maturity_date_iso).date() if maturity_date_iso else None
@@ -277,13 +276,6 @@ def manage_operations_collection():
                         op['nextReviewPoliticaTask'] = politica_tasks[0] if politica_tasks else None
                         op['nextReviewGerencial'] = gerencial_tasks[0]['dueDate'] if gerencial_tasks else None
                         op['nextReviewPolitica'] = politica_tasks[0]['dueDate'] if politica_tasks else None
-
-                    if summary_mode:
-                        op['tasks'] = []
-                        op['events'] = []
-                        op['taskRules'] = []
-                    else:
-                        op['tasks'] = tasks
 
             return jsonify(list(operations_map.values()))
         except Exception as e:
