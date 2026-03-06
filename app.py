@@ -1,28 +1,22 @@
 
 import os
-print("Starting application... (Step 1: Imports)") # Debug log
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-print("Starting application... (Step 2: DB Import)") # Debug log
 from db import get_db_connection
-print("Starting application... (Step 3: Task Engine Import)") # Debug log
 from task_engine import generate_tasks_for_operation
 from datetime import datetime, date, timedelta
 from collections import defaultdict
 import json
 import logging
 
-print("Starting application... (Step 4: App Creation)") # Debug log
 # Configurações básicas de logging
-app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), '..'), static_url_path='')
+# Serve static files from 'dist' folder in production
+app = Flask(__name__, static_folder='../dist', static_url_path='')
 logging.basicConfig(level=logging.INFO)
-app.logger.info("Application initialized")
 
-print("Starting application... (Step 5: CORS Setup)") # Debug log
 # Configuração de CORS para permitir requisições de qualquer origem.
 CORS(app, supports_credentials=True)
 
-print("Starting application... (Step 6: Business Logic Setup)") # Debug log
 # Regras de negócio centralizadas
 RATING_TO_POLITICA_FREQUENCY = {
     # Anual (Melhor que B1)
@@ -185,6 +179,7 @@ def fetch_full_operation(cursor, operation_id):
 def manage_operations_collection():
     conn = get_db_connection()
     if request.method == 'GET':
+        summary_mode = request.args.get('summary') == 'true'
         try:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT * FROM cri_cra_dev.crm.operations ORDER BY name")
@@ -192,15 +187,14 @@ def manage_operations_collection():
                 if not db_operations: return jsonify([])
 
                 notes_map = {}
-                try:
-                    cursor.execute("SELECT operation_id, notes FROM cri_cra_dev.crm.operation_review_notes")
-                    for row in cursor.fetchall():
-                        notes_map[row.operation_id] = row.notes
-                except Exception as e:
-                    if "TABLE_OR_VIEW_NOT_FOUND" in str(e):
-                        app.logger.warning("Tabela 'operation_review_notes' não encontrada. Pulando campo de notas para todas as operações.")
-                    else:
-                        raise e
+                if not summary_mode:
+                    try:
+                        cursor.execute("SELECT operation_id, notes FROM cri_cra_dev.crm.operation_review_notes")
+                        for row in cursor.fetchall():
+                            notes_map[row.operation_id] = row.notes
+                    except Exception as e:
+                        if "TABLE_OR_VIEW_NOT_FOUND" in str(e):
+                            app.logger.warning("Tabela 'operation_review_notes' não encontrada.")
 
                 operations_map = {}
                 for op_db in db_operations:
@@ -231,11 +225,17 @@ def manage_operations_collection():
                 op_ids = list(operations_map.keys())
                 placeholders = ', '.join(['?'] * len(op_ids))
                 
-                cursor.execute(f"SELECT op.operation_id, p.id, p.name FROM cri_cra_dev.crm.projects p JOIN cri_cra_dev.crm.operation_projects op ON p.id = op.project_id WHERE op.operation_id IN ({placeholders})", op_ids)
-                for row in cursor.fetchall(): operations_map[row.operation_id]['projects'].append({'id': row.id, 'name': row.name})
+                if not summary_mode:
+                    cursor.execute(f"SELECT op.operation_id, p.id, p.name FROM cri_cra_dev.crm.projects p JOIN cri_cra_dev.crm.operation_projects op ON p.id = op.project_id WHERE op.operation_id IN ({placeholders})", op_ids)
+                    for row in cursor.fetchall(): operations_map[row.operation_id]['projects'].append({'id': row.id, 'name': row.name})
 
-                cursor.execute(f"SELECT og.operation_id, g.id, g.name FROM cri_cra_dev.crm.guarantees g JOIN cri_cra_dev.crm.operation_guarantees og ON g.id = og.guarantee_id WHERE og.operation_id IN ({placeholders})", op_ids)
-                for row in cursor.fetchall(): operations_map[row.operation_id]['guarantees'].append({'id': row.id, 'name': row.name})
+                    cursor.execute(f"SELECT og.operation_id, g.id, g.name FROM cri_cra_dev.crm.guarantees g JOIN cri_cra_dev.crm.operation_guarantees og ON g.id = og.guarantee_id WHERE og.operation_id IN ({placeholders})", op_ids)
+                    for row in cursor.fetchall(): operations_map[row.operation_id]['guarantees'].append({'id': row.id, 'name': row.name})
+
+                    cursor.execute(f"SELECT * FROM cri_cra_dev.crm.rating_history WHERE operation_id IN ({placeholders}) ORDER BY date DESC", op_ids)
+                    for row in cursor.fetchall():
+                        rh_db = format_row(row, cursor)
+                        operations_map[row.operation_id]['ratingHistory'].append({ 'id': rh_db.get('id'), 'date': rh_db.get('date').isoformat() if rh_db.get('date') else None, 'ratingOperation': rh_db.get('rating_operation'), 'ratingGroup': rh_db.get('rating_group'), 'watchlist': rh_db.get('watchlist'), 'sentiment': rh_db.get('sentiment'), 'eventId': rh_db.get('event_id') })
 
                 cursor.execute(f"SELECT * FROM cri_cra_dev.crm.events WHERE operation_id IN ({placeholders}) ORDER BY date DESC", op_ids)
                 for row in cursor.fetchall():
@@ -247,17 +247,11 @@ def manage_operations_collection():
                     rule_db = format_row(row, cursor)
                     operations_map[row.operation_id]['taskRules'].append({ 'id': rule_db.get('id'), 'name': rule_db.get('name'), 'frequency': rule_db.get('frequency'), 'startDate': rule_db.get('start_date').isoformat() if rule_db.get('start_date') else None, 'endDate': rule_db.get('end_date').isoformat() if rule_db.get('end_date') else None, 'description': rule_db.get('description') })
 
-                cursor.execute(f"SELECT * FROM cri_cra_dev.crm.rating_history WHERE operation_id IN ({placeholders}) ORDER BY date DESC", op_ids)
-                for row in cursor.fetchall():
-                    rh_db = format_row(row, cursor)
-                    operations_map[row.operation_id]['ratingHistory'].append({ 'id': rh_db.get('id'), 'date': rh_db.get('date').isoformat() if rh_db.get('date') else None, 'ratingOperation': rh_db.get('rating_operation'), 'ratingGroup': rh_db.get('rating_group'), 'watchlist': rh_db.get('watchlist'), 'sentiment': rh_db.get('sentiment'), 'eventId': rh_db.get('event_id') })
-
                 cursor.execute(f"SELECT operation_id, task_id FROM cri_cra_dev.crm.task_exceptions WHERE operation_id IN ({placeholders})", op_ids)
                 exceptions_by_op = defaultdict(set)
                 for row in cursor.fetchall(): exceptions_by_op[row.operation_id].add(row.task_id)
 
                 for op_id, op in operations_map.items():
-                    # FIX: Ensure review rules always extend to the maturity date before generating tasks.
                     maturity_date_iso = op.get('maturityDate')
                     if maturity_date_iso:
                         for rule in op.get('taskRules', []):
@@ -265,10 +259,9 @@ def manage_operations_collection():
                                 rule['endDate'] = maturity_date_iso
 
                     tasks = generate_tasks_for_operation(op, exceptions_by_op.get(op_id, set()))
-                    op['tasks'] = tasks
+                    
                     op['overdueCount'] = sum(1 for task in tasks if task['status'] == 'Atrasada')
 
-                    # FIX: Check if operation has matured. If so, no more reviews are due.
                     maturity_date_obj = datetime.fromisoformat(maturity_date_iso).date() if maturity_date_iso else None
                     if maturity_date_obj and maturity_date_obj < date.today():
                         op['nextReviewGerencialTask'] = None
@@ -284,6 +277,13 @@ def manage_operations_collection():
                         op['nextReviewPoliticaTask'] = politica_tasks[0] if politica_tasks else None
                         op['nextReviewGerencial'] = gerencial_tasks[0]['dueDate'] if gerencial_tasks else None
                         op['nextReviewPolitica'] = politica_tasks[0]['dueDate'] if politica_tasks else None
+
+                    if summary_mode:
+                        op['tasks'] = []
+                        op['events'] = []
+                        op['taskRules'] = []
+                    else:
+                        op['tasks'] = tasks
 
             return jsonify(list(operations_map.values()))
         except Exception as e:
@@ -360,10 +360,23 @@ def manage_operations_collection():
         finally: 
             if conn: conn.close()
 
-@app.route('/api/operations/<int:op_id>', methods=['PUT', 'DELETE'])
+@app.route('/api/operations/<int:op_id>', methods=['GET', 'PUT', 'DELETE'])
 def manage_operation(op_id):
     conn = get_db_connection()
-    if request.method == 'PUT':
+    if request.method == 'GET':
+        try:
+            with conn.cursor() as cursor:
+                operation = fetch_full_operation(cursor, op_id)
+                if not operation:
+                    return jsonify({"error": "Operation not found"}), 404
+                return jsonify(operation)
+        except Exception as e:
+            app.logger.error(f"Error fetching operation {op_id}: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+        finally:
+            if conn: conn.close()
+
+    elif request.method == 'PUT':
         data = request.json
         try:
             with conn.cursor() as cursor:
@@ -692,12 +705,10 @@ def manage_operation_review_notes():
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react_app(path):
-    if path != "" and os.path.exists(os.path.join(os.path.dirname(__file__), '..', path)):
-        return send_from_directory(os.path.join(os.path.dirname(__file__), '..'), path)
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
     else:
-        return send_from_directory(os.path.join(os.path.dirname(__file__), '..'), 'index.html')
-
-print("Starting application... (Step 7: All Loaded)") # Debug log
+        return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 3000))
