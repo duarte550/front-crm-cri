@@ -1,23 +1,28 @@
 
 import os
-print("Starting application...") # Debug log for startup
+print("Starting application... (Step 1: Imports)") # Debug log
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+print("Starting application... (Step 2: DB Import)") # Debug log
 from db import get_db_connection
+print("Starting application... (Step 3: Task Engine Import)") # Debug log
 from task_engine import generate_tasks_for_operation
 from datetime import datetime, date, timedelta
 from collections import defaultdict
 import json
 import logging
 
+print("Starting application... (Step 4: App Creation)") # Debug log
 # Configurações básicas de logging
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), '..'), static_url_path='')
 logging.basicConfig(level=logging.INFO)
 app.logger.info("Application initialized")
 
+print("Starting application... (Step 5: CORS Setup)") # Debug log
 # Configuração de CORS para permitir requisições de qualquer origem.
 CORS(app, supports_credentials=True)
 
+print("Starting application... (Step 6: Business Logic Setup)") # Debug log
 # Regras de negócio centralizadas
 RATING_TO_POLITICA_FREQUENCY = {
     # Anual (Melhor que B1)
