@@ -223,7 +223,7 @@ ${event.nextSteps || 'Nenhum'}
         }
     };
     
-    const handleSaveReview = (data: { event: Omit<Event, 'id'>, ratingOp: Rating, ratingGroup: Rating, sentiment: Sentiment }) => {
+    const handleSaveReview = async (data: { event: Omit<Event, 'id'>, ratingOp: Rating, ratingGroup: Rating, sentiment: Sentiment }) => {
         const newEventId = Date.now();
         const eventToSave: Event = {
             ...data.event,
