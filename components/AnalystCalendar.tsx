@@ -1,13 +1,15 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { Task, Operation } from '../types';
+import type { Task, Operation, Event } from '../types';
 import { TaskStatus } from '../types';
-import { CheckCircleIcon } from './icons/Icons';
+import { CheckCircleIcon, PlusCircleIcon } from './icons/Icons';
+import Modal from './Modal';
 
 interface AnalystCalendarProps {
   tasks: Task[];
   operations: Operation[];
   onCompleteTask?: (task: Task) => void;
+  onOpenNewTaskModal?: (operationId?: number) => void;
 }
 
 const getAnalystColor = (analystName: string) => {
@@ -28,11 +30,12 @@ const getAnalystColor = (analystName: string) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
-const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, onCompleteTask }) => {
+const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, onCompleteTask, onOpenNewTaskModal }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedAnalyst, setSelectedAnalyst] = useState<string>('Todos');
+  const [showCompleted, setShowCompleted] = useState(false);
   const [popoverTask, setPopoverTask] = useState<{ task: Task, operationName: string, analyst: string } | null>(null);
-  const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const analysts = useMemo(() => {
@@ -49,7 +52,6 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
     const handleClickOutside = (event: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
         setPopoverTask(null);
-        setExpandedDay(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -70,7 +72,7 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
   const tasksByDay = useMemo(() => {
     const map = new Map<number, { task: Task; operationName: string; analyst: string }[]>();
     tasks.forEach(task => {
-      if (task.status === TaskStatus.COMPLETED) return; // Only show pending/overdue
+      if (!showCompleted && task.status === TaskStatus.COMPLETED) return;
       
       const operation = operations.find(op => op.id === task.operationId);
       if (!operation) return;
@@ -86,7 +88,26 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
       }
     });
     return map;
-  }, [tasks, currentDate, operations, selectedAnalyst]);
+  }, [tasks, currentDate, operations, selectedAnalyst, showCompleted]);
+
+  const eventsByDay = useMemo(() => {
+    const map = new Map<number, { event: Event; operationName: string; analyst: string }[]>();
+    operations.forEach(operation => {
+      if (selectedAnalyst !== 'Todos' && operation.responsibleAnalyst !== selectedAnalyst) return;
+      
+      operation.events.forEach(event => {
+        const eventDate = new Date(event.date);
+        if (eventDate.getMonth() === currentDate.getMonth() && eventDate.getFullYear() === currentDate.getFullYear()) {
+          const day = eventDate.getDate();
+          if (!map.has(day)) {
+            map.set(day, []);
+          }
+          map.get(day)?.push({ event, operationName: operation.name, analyst: operation.responsibleAnalyst });
+        }
+      });
+    });
+    return map;
+  }, [operations, currentDate, selectedAnalyst]);
 
   const changeMonth = (offset: number) => {
     setCurrentDate(prev => {
@@ -95,7 +116,7 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
       return newDate;
     });
     setPopoverTask(null);
-    setExpandedDay(null);
+    setSelectedDay(null);
   };
 
   const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -111,15 +132,26 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
           <button onClick={() => changeMonth(1)} className="p-2 bg-gray-50 text-gray-600 rounded-full hover:bg-gray-100 transition-colors shadow-sm border border-gray-200">&rarr;</button>
         </div>
         
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-600">Analista:</label>
-          <select 
-            value={selectedAnalyst} 
-            onChange={e => setSelectedAnalyst(e.target.value)}
-            className="text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 py-1.5 pl-3 pr-8"
-          >
-            {analysts.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked={showCompleted} 
+              onChange={(e) => setShowCompleted(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm font-medium text-gray-600">Mostrar Concluídas</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-600">Analista:</label>
+            <select 
+              value={selectedAnalyst} 
+              onChange={e => setSelectedAnalyst(e.target.value)}
+              className="text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 py-1.5 pl-3 pr-8"
+            >
+              {analysts.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -132,12 +164,22 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
         {daysInMonth.map((day, index) => {
           const isToday = isCurrentMonth && day?.getDate() === today.getDate();
           const dayTasks = day ? (tasksByDay.get(day.getDate()) || []) : [];
-          const isExpanded = expandedDay === day?.getDate();
-          const displayTasks = isExpanded ? dayTasks : dayTasks.slice(0, 2);
-          const hiddenCount = dayTasks.length - 2;
+          const dayEvents = day ? (eventsByDay.get(day.getDate()) || []) : [];
+          
+          const allItems = [
+            ...dayTasks.map(t => ({ ...t, type: 'task' as const })),
+            ...dayEvents.map(e => ({ ...e, type: 'event' as const }))
+          ];
+          
+          const displayItems = allItems.slice(0, 2);
+          const hiddenCount = allItems.length - 2;
 
           return (
-            <div key={index} className={`min-h-[120px] p-2 bg-white transition-colors ${!day ? 'bg-gray-50/50' : 'hover:bg-blue-50/30'}`}>
+            <div 
+              key={index} 
+              onClick={() => day && setSelectedDay(day)}
+              className={`min-h-[120px] p-2 bg-white transition-colors ${!day ? 'bg-gray-50/50' : 'hover:bg-blue-50/30 cursor-pointer'}`}
+            >
               {day && (
                 <div className="flex flex-col h-full">
                   <div className="flex justify-between items-start mb-1.5">
@@ -147,29 +189,44 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
                   </div>
                   
                   <div className="flex-1 space-y-1.5 relative">
-                    {displayTasks.map(({ task, operationName, analyst }) => {
-                      const colorClass = getAnalystColor(analyst);
-                      const isOverdue = task.status === TaskStatus.OVERDUE;
-                      
-                      return (
-                        <div 
-                          key={task.id} 
-                          onClick={(e) => { e.stopPropagation(); setPopoverTask({task, operationName, analyst}); setExpandedDay(null); }}
-                          className={`px-2 py-1.5 rounded-md text-xs font-medium cursor-pointer border shadow-sm transition-transform hover:scale-[1.02] ${isOverdue ? 'bg-red-50 text-red-700 border-red-200' : colorClass}`}
-                        >
-                          <div className="truncate font-bold">{task.ruleName}</div>
-                          <div className="truncate opacity-80 text-[10px]">{operationName}</div>
-                        </div>
-                      );
+                    {displayItems.map((item, i) => {
+                      if (item.type === 'task') {
+                        const { task, operationName, analyst } = item;
+                        const isCompleted = task.status === TaskStatus.COMPLETED;
+                        const isOverdue = task.status === TaskStatus.OVERDUE;
+                        const colorClass = isCompleted ? 'bg-gray-100 text-gray-500 border-gray-200' : getAnalystColor(analyst);
+                        
+                        return (
+                          <div 
+                            key={`task-${task.id}`} 
+                            onClick={(e) => { e.stopPropagation(); setPopoverTask({task, operationName, analyst}); }}
+                            className={`px-2 py-1.5 rounded-md text-xs font-medium cursor-pointer border shadow-sm transition-transform hover:scale-[1.02] ${isOverdue ? 'bg-red-50 text-red-700 border-red-200' : colorClass} ${isCompleted ? 'opacity-70' : ''}`}
+                          >
+                            <div className={`truncate font-bold ${isCompleted ? 'line-through' : ''}`}>{task.ruleName}</div>
+                            <div className="truncate opacity-80 text-[10px]">{operationName}</div>
+                          </div>
+                        );
+                      } else {
+                        const { event, operationName } = item;
+                        return (
+                          <div 
+                            key={`event-${event.id}`} 
+                            className="px-2 py-1.5 rounded-md text-xs font-medium border shadow-sm bg-gray-50 text-gray-700 border-gray-200"
+                          >
+                            <div className="truncate font-bold flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                              {event.title}
+                            </div>
+                            <div className="truncate opacity-80 text-[10px]">{operationName}</div>
+                          </div>
+                        );
+                      }
                     })}
                     
-                    {!isExpanded && hiddenCount > 0 && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setExpandedDay(day.getDate()); setPopoverTask(null); }}
-                        className="w-full text-left text-xs text-gray-500 font-medium hover:text-blue-600 py-1 pl-1"
-                      >
-                        + {hiddenCount} tarefas
-                      </button>
+                    {hiddenCount > 0 && (
+                      <div className="w-full text-left text-xs text-gray-500 font-medium py-1 pl-1">
+                        + {hiddenCount} itens
+                      </div>
                     )}
                   </div>
                 </div>
@@ -179,13 +236,115 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
         })}
       </div>
 
+      {/* Modal for Selected Day */}
+      <Modal
+        isOpen={!!selectedDay}
+        onClose={() => setSelectedDay(null)}
+        title={`Atividades: ${selectedDay?.toLocaleDateString('pt-BR')}`}
+        maxWidth="max-w-3xl"
+      >
+        <div className="space-y-6">
+          <div className="flex justify-end">
+            {onOpenNewTaskModal && (
+              <button
+                onClick={() => {
+                  onOpenNewTaskModal();
+                  setSelectedDay(null);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300 text-sm font-medium"
+              >
+                <PlusCircleIcon className="w-4 h-4" />
+                Nova Tarefa
+              </button>
+            )}
+          </div>
+          
+          {selectedDay && (
+            <>
+              {/* Tarefas */}
+              {(tasksByDay.get(selectedDay.getDate()) || []).length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3 border-b pb-2">Tarefas</h3>
+                  <div className="grid gap-3">
+                    {(tasksByDay.get(selectedDay.getDate()) || []).map(({ task, operationName, analyst }) => {
+                      const isCompleted = task.status === TaskStatus.COMPLETED;
+                      const isOverdue = task.status === TaskStatus.OVERDUE;
+                      const colorClass = isCompleted ? 'bg-gray-100 text-gray-500 border-gray-200' : getAnalystColor(analyst);
+
+                      return (
+                        <div key={task.id} className={`flex items-center justify-between p-4 rounded-lg border shadow-sm ${isOverdue ? 'bg-red-50 border-red-200' : colorClass} ${isCompleted ? 'opacity-70' : ''}`}>
+                          <div className="flex-1">
+                            <h4 className={`font-bold text-sm ${isCompleted ? 'line-through' : ''}`}>{task.ruleName}</h4>
+                            <p className="text-xs opacity-80 mt-1">{operationName}</p>
+                            <div className="flex items-center gap-4 mt-2 text-xs font-medium opacity-80">
+                              <span className="flex items-center gap-1">
+                                <span className={`w-2 h-2 rounded-full ${getAnalystColor(analyst).split(' ')[0]}`}></span>
+                                {analyst}
+                              </span>
+                              <span>Status: {task.status}</span>
+                            </div>
+                          </div>
+                          
+                          {!isCompleted && onCompleteTask && (
+                            <button 
+                              onClick={() => { onCompleteTask(task); setSelectedDay(null); }}
+                              className="ml-4 flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-xs font-medium shadow-sm"
+                            >
+                              <CheckCircleIcon className="w-4 h-4" />
+                              Concluir
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Eventos */}
+              {(eventsByDay.get(selectedDay.getDate()) || []).length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3 border-b pb-2">Eventos</h3>
+                  <div className="grid gap-3">
+                    {(eventsByDay.get(selectedDay.getDate()) || []).map(({ event, operationName, analyst }) => (
+                      <div key={event.id} className="flex items-center justify-between p-4 rounded-lg border shadow-sm bg-gray-50 border-gray-200 text-gray-800">
+                        <div className="flex-1">
+                          <h4 className="font-bold text-sm flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                            {event.title}
+                          </h4>
+                          <p className="text-xs opacity-80 mt-1">{operationName}</p>
+                          <div className="flex items-center gap-4 mt-2 text-xs font-medium opacity-80">
+                            <span className="flex items-center gap-1">
+                              <span className={`w-2 h-2 rounded-full ${getAnalystColor(analyst).split(' ')[0]}`}></span>
+                              {analyst}
+                            </span>
+                            <span>Tipo: {event.type}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(tasksByDay.get(selectedDay.getDate()) || []).length === 0 && (eventsByDay.get(selectedDay.getDate()) || []).length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  Nenhuma atividade para este dia.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </Modal>
+
       {/* Popover for Task Details */}
-      {popoverTask && (
+      {popoverTask && !selectedDay && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
           <div ref={popoverRef} className="bg-white rounded-xl shadow-2xl border border-gray-100 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className={`px-4 py-3 border-b ${popoverTask.task.status === TaskStatus.OVERDUE ? 'bg-red-50 border-red-100' : 'bg-blue-50 border-blue-100'}`}>
+            <div className={`px-4 py-3 border-b ${popoverTask.task.status === TaskStatus.OVERDUE ? 'bg-red-50 border-red-100' : popoverTask.task.status === TaskStatus.COMPLETED ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-100'}`}>
               <div className="flex justify-between items-start">
-                <h4 className="font-bold text-gray-900 text-lg pr-4">{popoverTask.task.ruleName}</h4>
+                <h4 className={`font-bold text-gray-900 text-lg pr-4 ${popoverTask.task.status === TaskStatus.COMPLETED ? 'line-through text-gray-500' : ''}`}>{popoverTask.task.ruleName}</h4>
                 <button onClick={() => setPopoverTask(null)} className="text-gray-400 hover:text-gray-600">&times;</button>
               </div>
               <p className="text-sm font-medium text-gray-600 mt-1">{popoverTask.operationName}</p>
@@ -199,6 +358,12 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500">Status:</span>
+                <span className={`font-semibold ${popoverTask.task.status === TaskStatus.OVERDUE ? 'text-red-600' : popoverTask.task.status === TaskStatus.COMPLETED ? 'text-green-600' : 'text-blue-600'}`}>
+                  {popoverTask.task.status}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-500">Analista:</span>
                 <span className="font-medium text-gray-800 flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${getAnalystColor(popoverTask.analyst).split(' ')[0]}`}></span>
@@ -206,7 +371,7 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
                 </span>
               </div>
               
-              {onCompleteTask && (
+              {onCompleteTask && popoverTask.task.status !== TaskStatus.COMPLETED && (
                 <div className="pt-3 mt-3 border-t border-gray-100">
                   <button 
                     onClick={() => { onCompleteTask(popoverTask.task); setPopoverTask(null); }}
