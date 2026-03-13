@@ -45,7 +45,8 @@ const formatDate = (dateString: string | null | undefined) => {
         
         if (isNaN(date.getTime())) return 'Data Inválida';
         
-        return date.toLocaleDateString('pt-BR');
+        const monthNames = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+        return `${monthNames[date.getMonth()]}/${date.getFullYear().toString().slice(-2)}`;
     } catch (e) {
         console.error("Erro ao formatar data:", dateString, e);
         return 'Erro na Data';
@@ -230,7 +231,12 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
 
                 return (
                   <tr key={op.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{op.name}</td>
+                    <td 
+                      className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
+                      onClick={() => onSelectOperation(op.id)}
+                    >
+                      {op.name}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-700">{formatDate(op.maturityDate)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{op.ratingOperation}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><WatchlistBadge status={currentStatus} /></td>
