@@ -148,7 +148,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
       setIsEventFormOpen(false);
   };
 
-  const handleSaveReview = (data: { event: Omit<Event, 'id'>, ratingOp: Rating, ratingGroup: Rating, sentiment: Sentiment }) => {
+  const handleSaveReview = async (data: { event: Omit<Event, 'id'>, ratingOp: Rating, ratingGroup: Rating, sentiment: Sentiment }) => {
     if (!reviewTaskToComplete) return;
     const operationToUpdate = operationsById.get(reviewTaskToComplete.operationId);
     if (!operationToUpdate) return;
