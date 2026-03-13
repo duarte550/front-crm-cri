@@ -3,11 +3,20 @@ import React, { useState } from 'react';
 import type { Operation, Event, Rating, Sentiment } from '../types';
 import { ratingOptions, WatchlistStatus, Sentiment as SentimentEnum } from '../types';
 import Modal from './Modal';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 interface WatchlistChangeFormProps {
   operation: Operation;
   onClose: () => void;
   onSave: (data: { watchlist: WatchlistStatus, ratingOp: Rating, ratingGroup: Rating, sentiment: Sentiment, event: Omit<Event, 'id'>}) => void;
+  initialData?: {
+      watchlist: WatchlistStatus;
+      ratingOp: Rating;
+      ratingGroup: Rating;
+      sentiment: Sentiment;
+      event: Event;
+  };
 }
 
 const Label: React.FC<{htmlFor: string; children: React.ReactNode}> = ({ htmlFor, children }) => <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-1">{children}</label>;
@@ -16,14 +25,14 @@ const Textarea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> = (p
 const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => <input {...props} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />;
 
 
-const WatchlistChangeForm: React.FC<WatchlistChangeFormProps> = ({ operation, onClose, onSave }) => {
-  const [watchlist, setWatchlist] = useState(operation.watchlist);
-  const [ratingOp, setRatingOp] = useState(operation.ratingOperation);
-  const [ratingGroup, setRatingGroup] = useState(operation.ratingGroup);
-  const [description, setDescription] = useState('');
-  const [changeDate, setChangeDate] = useState(new Date().toISOString().split('T')[0]);
-  const [nextSteps, setNextSteps] = useState('');
-  const [sentiment, setSentiment] = useState<Sentiment>(SentimentEnum.NEUTRO);
+const WatchlistChangeForm: React.FC<WatchlistChangeFormProps> = ({ operation, onClose, onSave, initialData }) => {
+  const [watchlist, setWatchlist] = useState(initialData?.watchlist || operation.watchlist);
+  const [ratingOp, setRatingOp] = useState(initialData?.ratingOp || operation.ratingOperation);
+  const [ratingGroup, setRatingGroup] = useState(initialData?.ratingGroup || operation.ratingGroup);
+  const [description, setDescription] = useState(initialData?.event.description || '');
+  const [changeDate, setChangeDate] = useState(initialData?.event.date ? new Date(initialData.event.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+  const [nextSteps, setNextSteps] = useState(initialData?.event.nextSteps || '');
+  const [sentiment, setSentiment] = useState<Sentiment>(initialData?.sentiment || SentimentEnum.NEUTRO);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +52,7 @@ const WatchlistChangeForm: React.FC<WatchlistChangeFormProps> = ({ operation, on
   };
 
   return (
-    <Modal isOpen={true} onClose={onClose} title="Alterar Watchlist e Ratings">
+    <Modal isOpen={true} onClose={onClose} title={initialData ? "Editar Alteração" : "Alterar Watchlist e Ratings"}>
       <form onSubmit={handleSubmit} className="space-y-4">
         
         <div>
@@ -83,12 +92,16 @@ const WatchlistChangeForm: React.FC<WatchlistChangeFormProps> = ({ operation, on
 
         <div>
             <Label htmlFor="change-description">Descrição / Motivo da Alteração</Label>
-            <Textarea id="change-description" value={description} onChange={e => setDescription(e.target.value)} rows={4} required />
+            <div className="bg-white rounded-md border border-gray-300 overflow-hidden">
+                <ReactQuill theme="snow" value={description} onChange={setDescription} className="h-48 mb-12" />
+            </div>
         </div>
         
         <div>
             <Label htmlFor="change-next-steps">Próximos Passos</Label>
-            <Textarea id="change-next-steps" value={nextSteps} onChange={e => setNextSteps(e.target.value)} rows={2} />
+            <div className="bg-white rounded-md border border-gray-300 overflow-hidden">
+                <ReactQuill theme="snow" value={nextSteps} onChange={setNextSteps} className="h-32 mb-12" />
+            </div>
         </div>
 
         <div className="flex justify-end gap-4 pt-4">
