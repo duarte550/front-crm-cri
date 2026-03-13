@@ -1,10 +1,9 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Operation, Task, Event, Rating, Sentiment, RatingHistoryEntry, Area, TaskRule } from '../types';
 import { TaskStatus } from '../types';
 import EventForm from './EventForm';
 import ReviewCompletionForm from './ReviewCompletionForm';
-import { CheckCircleIcon, PlusCircleIcon, PencilIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
+import { CheckCircleIcon, PlusCircleIcon, PencilIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon, CalendarIcon, ViewListIcon, ViewBoardsIcon, FilterIcon } from './icons/Icons';
 import Modal from './Modal';
 import AdHocTaskForm from './AdHocTaskForm';
 
@@ -17,10 +16,31 @@ interface TasksPageProps {
   onEditTask: (task: Task, updates: { name: string, dueDate: string }) => void;
 }
 
+const getAnalystColor = (analystName: string) => {
+  const colors = [
+    'bg-blue-100 text-blue-800 border-blue-200',
+    'bg-emerald-100 text-emerald-800 border-emerald-200',
+    'bg-purple-100 text-purple-800 border-purple-200',
+    'bg-amber-100 text-amber-800 border-amber-200',
+    'bg-pink-100 text-pink-800 border-pink-200',
+    'bg-indigo-100 text-indigo-800 border-indigo-200',
+    'bg-teal-100 text-teal-800 border-teal-200',
+    'bg-rose-100 text-rose-800 border-rose-200',
+  ];
+  let hash = 0;
+  for (let i = 0; i < analystName.length; i++) {
+    hash = analystName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
+
+const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+};
+
 const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOperation, onOpenNewTaskModal, onDeleteTask, onEditTask }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedAnalyst, setSelectedAnalyst] = useState('Todos');
-  const [selectedRuleName, setSelectedRuleName] = useState('Todos');
   const [selectedOperationId, setSelectedOperationId] = useState('Todos');
   const [areaFilter, setAreaFilter] = useState<'All' | Area>('All');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'completed'
@@ -28,13 +48,21 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
   const [selectedRuleNames, setSelectedRuleNames] = useState<string[]>([]);
   const [ruleSearchTerm, setRuleSearchTerm] = useState('');
   const [isRuleDropdownOpen, setIsRuleDropdownOpen] = useState(false);
+  
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [selectedDateFilter, setSelectedDateFilter] = useState<number | null>(null);
 
   const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
   const [isEventFormOpen, setIsEventFormOpen] = useState(false);
-  
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const [reviewTaskToComplete, setReviewTaskToComplete] = useState<Task | null>(null);
+  const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
+  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
 
-  React.useEffect(() => {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
           if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
               setIsRuleDropdownOpen(false);
@@ -43,12 +71,6 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const [reviewTaskToComplete, setReviewTaskToComplete] = useState<Task | null>(null);
-  const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
-
-  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
-  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
 
   const analysts = useMemo(() => ['Todos', ...new Set(operations.map(op => op.responsibleAnalyst))], [operations]);
   const operationsById = useMemo(() => new Map(operations.map(op => [op.id, op])), [operations]);
@@ -73,38 +95,42 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
       if (selectedOperationId !== 'Todos' && task.operationId !== parseInt(selectedOperationId, 10)) return false;
       if (selectedAnalyst !== 'Todos' && op.responsibleAnalyst !== selectedAnalyst) return false;
       if (selectedRuleNames.length > 0 && !selectedRuleNames.includes(task.ruleName)) return false;
+      
+      // Filter by month
+      const dueDate = new Date(task.dueDate);
+      const isCompleted = task.status === TaskStatus.COMPLETED;
+      
+      let dateToCheck = dueDate;
+      if (isCompleted) {
+          const completionEvent = op.events.find(e => e.completedTaskId === task.id);
+          if (completionEvent) dateToCheck = new Date(completionEvent.date);
+      }
+      
+      if (dateToCheck.getFullYear() !== currentMonth.getFullYear() || dateToCheck.getMonth() !== currentMonth.getMonth()) {
+          return false;
+      }
+
+      // Filter by selected day in mini-calendar
+      if (selectedDateFilter !== null && dateToCheck.getDate() !== selectedDateFilter) {
+          return false;
+      }
+
       return true;
     });
-  }, [allTasks, operationsById, areaFilter, selectedOperationId, selectedAnalyst, selectedRuleNames]);
+  }, [allTasks, operationsById, areaFilter, selectedOperationId, selectedAnalyst, selectedRuleNames, currentMonth, selectedDateFilter]);
 
-
-  const pendingTasksInMonth = useMemo(() => {
-    const tasks = filteredTasks
-      .filter(task => task.status !== TaskStatus.COMPLETED)
-      .filter(task => {
-        const dueDate = new Date(task.dueDate);
-        return dueDate.getFullYear() === currentMonth.getFullYear() && dueDate.getMonth() === currentMonth.getMonth();
-      });
-
+  const pendingTasks = useMemo(() => {
+      const tasks = filteredTasks.filter(task => task.status !== TaskStatus.COMPLETED);
       tasks.sort((a, b) => {
           const dateA = new Date(a.dueDate).getTime();
           const dateB = new Date(b.dueDate).getTime();
           return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
       });
       return tasks;
-  }, [filteredTasks, currentMonth, sortDirection]);
+  }, [filteredTasks, sortDirection]);
 
-  const completedTasksInMonth = useMemo(() => {
-     const tasks = filteredTasks
-      .filter(task => task.status === TaskStatus.COMPLETED)
-      .filter(task => {
-        const op = operationsById.get(task.operationId);
-        const completionEvent = op?.events.find(e => e.completedTaskId === task.id);
-        if (!completionEvent) return false;
-        const completionDate = new Date(completionEvent.date);
-        return completionDate.getFullYear() === currentMonth.getFullYear() && completionDate.getMonth() === currentMonth.getMonth();
-      });
-
+  const completedTasks = useMemo(() => {
+      const tasks = filteredTasks.filter(task => task.status === TaskStatus.COMPLETED);
       tasks.sort((a, b) => {
           const eventA = operationsById.get(a.operationId)?.events.find(e => e.completedTaskId === a.id);
           const eventB = operationsById.get(b.operationId)?.events.find(e => e.completedTaskId === b.id);
@@ -113,7 +139,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
           return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
       });
       return tasks;
-  }, [filteredTasks, currentMonth, operationsById, sortDirection]);
+  }, [filteredTasks, operationsById, sortDirection]);
 
   const changeMonth = (offset: number) => {
     setCurrentMonth(prev => {
@@ -121,6 +147,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
       newDate.setMonth(prev.getMonth() + offset);
       return newDate;
     });
+    setSelectedDateFilter(null);
   };
   
   const handleCompleteTaskClick = (task: Task) => {
@@ -135,15 +162,10 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
   
   const handleAddEvent = (newEvent: Omit<Event, 'id'>) => {
       if (!taskToComplete) return;
-
       const operationToUpdate = operationsById.get(taskToComplete.operationId);
       if (operationToUpdate) {
-        const eventToSave: Partial<Event> = {
-            ...newEvent,
-            completedTaskId: taskToComplete.id,
-        };
+        const eventToSave: Partial<Event> = { ...newEvent, completedTaskId: taskToComplete.id };
         const updatedTasks = operationToUpdate.tasks.map(t => t.id === taskToComplete.id ? {...t, status: TaskStatus.COMPLETED} : t);
-
         const updatedOperation = {
             ...operationToUpdate,
             events: [...operationToUpdate.events, { ...eventToSave, id: Date.now() } as Event],
@@ -151,7 +173,6 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
         };
         onUpdateOperation(updatedOperation);
       }
-      
       setTaskToComplete(null);
       setIsEventFormOpen(false);
   };
@@ -162,12 +183,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
     if (!operationToUpdate) return;
 
     const newEventId = Date.now();
-    const eventToSave: Event = {
-        ...data.event,
-        id: newEventId,
-        completedTaskId: reviewTaskToComplete?.id
-    };
-
+    const eventToSave: Event = { ...data.event, id: newEventId, completedTaskId: reviewTaskToComplete?.id };
     const newHistoryEntry: RatingHistoryEntry = {
         id: Date.now() + 1,
         date: eventToSave.date,
@@ -177,9 +193,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
         sentiment: data.sentiment,
         eventId: newEventId,
     };
-
     const updatedTasks = operationToUpdate.tasks.map(t => t.id === reviewTaskToComplete.id ? {...t, status: TaskStatus.COMPLETED} : t);
-
     const updatedOperation: Operation = {
         ...operationToUpdate,
         ratingOperation: data.ratingOp,
@@ -188,7 +202,6 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
         ratingHistory: [...operationToUpdate.ratingHistory, newHistoryEntry],
         tasks: updatedTasks
     };
-    
     onUpdateOperation(updatedOperation);
     setReviewTaskToComplete(null);
     setIsReviewFormOpen(false);
@@ -207,10 +220,166 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
           setTaskToEdit(null);
       }
   };
-  
+
+  // Mini Dashboard Stats
+  const totalTasks = pendingTasks.length + completedTasks.length;
+  const completedCount = completedTasks.length;
+  const overdueCount = pendingTasks.filter(t => t.status === TaskStatus.OVERDUE).length;
+  const progressPercent = totalTasks === 0 ? 0 : Math.round((completedCount / totalTasks) * 100);
+
+  // Mini Calendar Logic
+  const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+  const lastDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+  const daysInMonth = useMemo(() => {
+    const days = [];
+    for (let i = 0; i < firstDayOfMonth.getDay(); i++) days.push(null);
+    for (let day = 1; day <= lastDayOfMonth.getDate(); day++) days.push(day);
+    return days;
+  }, [firstDayOfMonth, lastDayOfMonth]);
+
+  const taskCountsByDay = useMemo(() => {
+      const counts = new Map<number, { pending: number, completed: number, overdue: number }>();
+      
+      // We need to calculate this BEFORE the selectedDateFilter is applied, so we use a separate filter
+      const allMonthTasks = allTasks.filter(task => {
+          const op = operationsById.get(task.operationId);
+          if (!op) return false;
+          if (areaFilter !== 'All' && op.area !== areaFilter) return false;
+          if (selectedOperationId !== 'Todos' && task.operationId !== parseInt(selectedOperationId, 10)) return false;
+          if (selectedAnalyst !== 'Todos' && op.responsibleAnalyst !== selectedAnalyst) return false;
+          if (selectedRuleNames.length > 0 && !selectedRuleNames.includes(task.ruleName)) return false;
+          
+          const dueDate = new Date(task.dueDate);
+          const isCompleted = task.status === TaskStatus.COMPLETED;
+          let dateToCheck = dueDate;
+          if (isCompleted) {
+              const completionEvent = op.events.find(e => e.completedTaskId === task.id);
+              if (completionEvent) dateToCheck = new Date(completionEvent.date);
+          }
+          return dateToCheck.getFullYear() === currentMonth.getFullYear() && dateToCheck.getMonth() === currentMonth.getMonth();
+      });
+
+      allMonthTasks.forEach(task => {
+          const op = operationsById.get(task.operationId);
+          const isCompleted = task.status === TaskStatus.COMPLETED;
+          let day = new Date(task.dueDate).getDate();
+          if (isCompleted && op) {
+              const completionEvent = op.events.find(e => e.completedTaskId === task.id);
+              if (completionEvent) day = new Date(completionEvent.date).getDate();
+          }
+
+          if (!counts.has(day)) counts.set(day, { pending: 0, completed: 0, overdue: 0 });
+          const current = counts.get(day)!;
+          if (isCompleted) current.completed++;
+          else if (task.status === TaskStatus.OVERDUE) current.overdue++;
+          else current.pending++;
+      });
+      return counts;
+  }, [allTasks, operationsById, areaFilter, selectedOperationId, selectedAnalyst, selectedRuleNames, currentMonth]);
+
+  // Kanban Columns
+  const kanbanColumns = useMemo(() => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const cols = {
+          overdue: [] as Task[],
+          today: [] as Task[],
+          thisWeek: [] as Task[],
+          later: [] as Task[],
+          completed: completedTasks
+      };
+
+      pendingTasks.forEach(task => {
+          const dueDate = new Date(task.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          const diffTime = dueDate.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          if (task.status === TaskStatus.OVERDUE) {
+              cols.overdue.push(task);
+          } else if (diffDays === 0) {
+              cols.today.push(task);
+          } else if (diffDays > 0 && diffDays <= 7) {
+              cols.thisWeek.push(task);
+          } else {
+              cols.later.push(task);
+          }
+      });
+      return cols;
+  }, [pendingTasks, completedTasks]);
+
+  const renderTaskCard = (task: Task, isCompleted: boolean = false) => {
+      const op = operationsById.get(task.operationId);
+      const operationName = op?.name || 'N/A';
+      const analyst = op?.responsibleAnalyst || 'N/A';
+      const analystColor = getAnalystColor(analyst);
+      const initials = getInitials(analyst);
+      
+      let statusColor = 'border-yellow-400';
+      let bgColor = 'bg-white';
+      if (isCompleted) {
+          statusColor = 'border-green-500';
+          bgColor = 'bg-green-50/30';
+      } else if (task.status === TaskStatus.OVERDUE) {
+          statusColor = 'border-red-500';
+          bgColor = 'bg-red-50/30';
+      }
+
+      let dateText = `Vencimento: ${new Date(task.dueDate).toLocaleDateString('pt-BR')}`;
+      if (isCompleted && op) {
+          const completionEvent = op.events.find(e => e.completedTaskId === task.id);
+          if (completionEvent) {
+              dateText = `Concluída em: ${new Date(completionEvent.date).toLocaleDateString('pt-BR')}`;
+          }
+      }
+
+      return (
+          <div key={task.id} className={`p-4 rounded-xl shadow-sm border border-gray-100 border-l-4 ${statusColor} ${bgColor} flex flex-col gap-3 transition-all hover:shadow-md`}>
+              <div className="flex justify-between items-start gap-2">
+                  <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1.5">
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-bold uppercase tracking-wider rounded-md">
+                              {operationName}
+                          </span>
+                      </div>
+                      <h4 className="font-bold text-gray-800 leading-tight">{task.ruleName}</h4>
+                  </div>
+                  <div 
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${analystColor}`}
+                      title={`Analista: ${analyst}`}
+                  >
+                      {initials}
+                  </div>
+              </div>
+              
+              <div className="flex justify-between items-end mt-2">
+                  <p className={`text-xs font-medium ${isCompleted ? 'text-green-700' : task.status === TaskStatus.OVERDUE ? 'text-red-600' : 'text-gray-500'}`}>
+                      {dateText}
+                  </p>
+                  
+                  {!isCompleted && (
+                      <div className="flex items-center gap-1">
+                          <button onClick={() => setTaskToEdit(task)} className="text-gray-400 hover:text-blue-600 p-1.5 rounded-full hover:bg-blue-50 transition-colors" title="Editar Tarefa">
+                              <PencilIcon className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setTaskToDelete(task)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50 transition-colors" title="Deletar Tarefa">
+                              <TrashIcon className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleCompleteTaskClick(task)} className="ml-1 flex items-center gap-1 px-2.5 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-medium shadow-sm transition-colors">
+                              <CheckCircleIcon className="w-3.5 h-3.5" /> Concluir
+                          </button>
+                      </div>
+                  )}
+              </div>
+          </div>
+      );
+  };
+
   return (
     <div className="space-y-6">
-       {isEventFormOpen && taskToComplete && (
+        {/* Modals */}
+        {isEventFormOpen && taskToComplete && (
             <EventForm 
                 onClose={() => { setIsEventFormOpen(false); setTaskToComplete(null); }} 
                 onSave={handleAddEvent}
@@ -228,23 +397,13 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
         )}
         {taskToEdit && (
             <Modal isOpen={true} onClose={() => setTaskToEdit(null)} title="Editar Tarefa">
-                <AdHocTaskForm
-                    onClose={() => setTaskToEdit(null)}
-                    onSave={handleSaveEditedTask}
-                    initialTask={taskToEdit}
-                />
+                <AdHocTaskForm onClose={() => setTaskToEdit(null)} onSave={handleSaveEditedTask} initialTask={taskToEdit} />
             </Modal>
         )}
         {taskToDelete && (
-            <Modal
-                isOpen={true}
-                onClose={() => setTaskToDelete(null)}
-                title={`Deletar Tarefa: ${taskToDelete.ruleName}`}
-            >
+            <Modal isOpen={true} onClose={() => setTaskToDelete(null)} title={`Deletar Tarefa: ${taskToDelete.ruleName}`}>
                 <div className="text-center">
-                    <p className="text-lg text-gray-700 mb-6">
-                    Você tem certeza que deseja deletar esta tarefa? Esta ação não pode ser desfeita.
-                    </p>
+                    <p className="text-lg text-gray-700 mb-6">Você tem certeza que deseja deletar esta tarefa? Esta ação não pode ser desfeita.</p>
                     <div className="flex justify-center gap-4">
                         <button onClick={() => setTaskToDelete(null)} className="px-6 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancelar</button>
                         <button onClick={handleConfirmDeleteTask} className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Confirmar Deleção</button>
@@ -253,203 +412,324 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
             </Modal>
         )}
 
-      <div className="bg-white p-6 rounded-lg shadow-lg">
-        <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-gray-800">Gerenciador de Tarefas</h2>
-             <button
-                onClick={() => onOpenNewTaskModal()}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-                <PlusCircleIcon className="w-5 h-5" /> Adicionar Tarefa
-            </button>
+      {/* Header & Mini Dashboard */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+            <div>
+                <h2 className="text-2xl font-bold text-gray-800">Gerenciador de Tarefas</h2>
+                <p className="text-sm text-gray-500 mt-1">Acompanhe e gerencie as pendências do mês.</p>
+            </div>
+             <div className="flex items-center gap-3">
+                <button
+                    onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${isFiltersOpen ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}
+                >
+                    <FilterIcon className="w-4 h-4" /> Filtros
+                </button>
+                <button
+                    onClick={() => onOpenNewTaskModal()}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition-colors font-medium"
+                >
+                    <PlusCircleIcon className="w-5 h-5" /> Nova Tarefa
+                </button>
+            </div>
         </div>
-        
-        {/* Filters */}
-        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-             <div>
-              <label htmlFor="area-filter" className="block text-sm font-medium text-gray-700">Área de Negócio</label>
-              <select id="area-filter" value={areaFilter} onChange={e => setAreaFilter(e.target.value as any)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                <option value="All">Todas</option>
-                <option value="CRI">CRI</option>
-                <option value="Capital Solutions">Capital Solutions</option>
-              </select>
+
+        {/* Progress Bar & Stats */}
+        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+            <div className="flex justify-between items-end mb-2">
+                <div>
+                    <span className="text-sm font-bold text-gray-700">Progresso de {currentMonth.toLocaleString('pt-BR', { month: 'long' })}</span>
+                    <span className="text-xs text-gray-500 ml-2">({completedCount} de {totalTasks} concluídas)</span>
+                </div>
+                <span className="text-lg font-black text-blue-600">{progressPercent}%</span>
             </div>
-            <div>
-              <label htmlFor="analyst-filter" className="block text-sm font-medium text-gray-700">Analista</label>
-              <select id="analyst-filter" value={selectedAnalyst} onChange={e => setSelectedAnalyst(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                {analysts.map(name => <option key={name} value={name}>{name}</option>)}
-              </select>
+            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4 overflow-hidden">
+                <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
             </div>
-            <div>
-                <label htmlFor="operation-filter" className="block text-sm font-medium text-gray-700">Operação</label>
-                <select id="operation-filter" value={selectedOperationId} onChange={e => setSelectedOperationId(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                    <option value="Todos">Todas</option>
-                    {operations.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
-                </select>
+            <div className="flex gap-6">
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                    <span className="text-xs font-medium text-gray-600">{overdueCount} Atrasadas</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                    <span className="text-xs font-medium text-gray-600">{pendingTasks.length - overdueCount} Pendentes</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span className="text-xs font-medium text-gray-600">{completedCount} Concluídas</span>
+                </div>
             </div>
-             <div>
-                <label className="block text-sm font-medium text-gray-700">Tipo de Tarefa</label>
-                <div className="relative mt-1" ref={dropdownRef}>
-                    <div 
-                        className="block w-full rounded-md border border-gray-300 shadow-sm bg-white px-3 py-2 text-left cursor-pointer sm:text-sm"
-                        onClick={() => setIsRuleDropdownOpen(!isRuleDropdownOpen)}
-                    >
-                        {selectedRuleNames.length === 0 ? 'Todos' : `${selectedRuleNames.length} selecionados`}
+        </div>
+
+        {/* Collapsible Filters */}
+        {isFiltersOpen && (
+            <div className="mt-4 p-4 bg-white border border-gray-200 rounded-xl shadow-sm animate-in slide-in-from-top-2 duration-200">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Área</label>
+                        <select value={areaFilter} onChange={e => setAreaFilter(e.target.value as any)} className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2">
+                            <option value="All">Todas</option>
+                            <option value="CRI">CRI</option>
+                            <option value="Capital Solutions">Capital Solutions</option>
+                        </select>
                     </div>
-                    {isRuleDropdownOpen && (
-                        <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-                            <div className="px-2 py-2 sticky top-0 bg-white border-b border-gray-100">
-                                <input 
-                                    type="text" 
-                                    placeholder="Buscar tipo..." 
-                                    className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                                    value={ruleSearchTerm}
-                                    onChange={e => setRuleSearchTerm(e.target.value)}
-                                    onClick={e => e.stopPropagation()}
-                                />
-                            </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Analista</label>
+                        <select value={selectedAnalyst} onChange={e => setSelectedAnalyst(e.target.value)} className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2">
+                            {analysts.map(name => <option key={name} value={name}>{name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Operação</label>
+                        <select value={selectedOperationId} onChange={e => setSelectedOperationId(e.target.value)} className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2">
+                            <option value="Todos">Todas</option>
+                            {operations.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Tipo de Tarefa</label>
+                        <div className="relative" ref={dropdownRef}>
                             <div 
-                                className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2"
-                                onClick={() => setSelectedRuleNames([])}
+                                className="w-full rounded-md border border-gray-300 shadow-sm bg-white px-3 py-2 text-left cursor-pointer text-sm"
+                                onClick={() => setIsRuleDropdownOpen(!isRuleDropdownOpen)}
                             >
-                                <input type="checkbox" checked={selectedRuleNames.length === 0} readOnly className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                <span>Todos</span>
+                                {selectedRuleNames.length === 0 ? 'Todos' : `${selectedRuleNames.length} selecionados`}
                             </div>
-                            {availableRuleNames.filter(name => name.toLowerCase().includes(ruleSearchTerm.toLowerCase())).map(name => (
-                                <div 
-                                    key={name}
-                                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2"
-                                    onClick={() => {
-                                        setSelectedRuleNames(prev => 
-                                            prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
-                                        );
-                                    }}
-                                >
-                                    <input type="checkbox" checked={selectedRuleNames.includes(name)} readOnly className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                    <span>{name}</span>
+                            {isRuleDropdownOpen && (
+                                <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-sm ring-1 ring-black ring-opacity-5 overflow-auto">
+                                    <div className="px-2 py-2 sticky top-0 bg-white border-b border-gray-100">
+                                        <input 
+                                            type="text" placeholder="Buscar tipo..." 
+                                            className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
+                                            value={ruleSearchTerm} onChange={e => setRuleSearchTerm(e.target.value)} onClick={e => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <div className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => setSelectedRuleNames([])}>
+                                        <input type="checkbox" checked={selectedRuleNames.length === 0} readOnly className="rounded border-gray-300 text-blue-600" />
+                                        <span>Todos</span>
+                                    </div>
+                                    {availableRuleNames.filter(name => name.toLowerCase().includes(ruleSearchTerm.toLowerCase())).map(name => (
+                                        <div key={name} className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => {
+                                            setSelectedRuleNames(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+                                        }}>
+                                            <input type="checkbox" checked={selectedRuleNames.includes(name)} readOnly className="rounded border-gray-300 text-blue-600" />
+                                            <span>{name}</span>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 text-center">Mês</label>
-                <div className="flex justify-between items-center mt-1">
-                    <button onClick={() => changeMonth(-1)} className="px-3 py-2 bg-gray-200 rounded-md hover:bg-gray-300">&larr;</button>
-                    <h3 className="font-semibold text-gray-700">
-                        {currentMonth.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
-                    </h3>
-                    <button onClick={() => changeMonth(1)} className="px-3 py-2 bg-gray-200 rounded-md hover:bg-gray-300">&rarr;</button>
-                </div>
-            </div>
+        )}
+      </div>
+
+      {/* Main Layout: Sidebar Calendar + Content */}
+      <div className="flex flex-col lg:flex-row gap-6">
+          
+          {/* Sidebar Mini Calendar */}
+          <div className="w-full lg:w-64 flex-shrink-0">
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 sticky top-4">
+                  <div className="flex justify-between items-center mb-4">
+                      <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-gray-100 rounded text-gray-500">&larr;</button>
+                      <h3 className="font-bold text-gray-800 text-sm capitalize">{currentMonth.toLocaleString('pt-BR', { month: 'short', year: 'numeric' })}</h3>
+                      <button onClick={() => changeMonth(1)} className="p-1 hover:bg-gray-100 rounded text-gray-500">&rarr;</button>
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                      {['D','S','T','Q','Q','S','S'].map((d, i) => (
+                          <div key={i} className="text-[10px] font-bold text-gray-400">{d}</div>
+                      ))}
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-1">
+                      {daysInMonth.map((day, i) => {
+                          if (!day) return <div key={i} className="h-8"></div>;
+                          
+                          const counts = taskCountsByDay.get(day);
+                          const hasTasks = counts && (counts.pending > 0 || counts.completed > 0 || counts.overdue > 0);
+                          const isSelected = selectedDateFilter === day;
+                          
+                          let dotColor = '';
+                          if (counts) {
+                              if (counts.overdue > 0) dotColor = 'bg-red-500';
+                              else if (counts.pending > 0) dotColor = 'bg-yellow-400';
+                              else if (counts.completed > 0) dotColor = 'bg-green-500';
+                          }
+
+                          return (
+                              <button 
+                                  key={i}
+                                  onClick={() => setSelectedDateFilter(isSelected ? null : day)}
+                                  className={`h-8 flex flex-col items-center justify-center rounded-md text-xs transition-all relative
+                                      ${isSelected ? 'bg-blue-600 text-white font-bold shadow-md' : 'hover:bg-gray-100 text-gray-700'}
+                                      ${hasTasks && !isSelected ? 'font-semibold' : ''}
+                                  `}
+                              >
+                                  {day}
+                                  {hasTasks && !isSelected && (
+                                      <div className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${dotColor}`}></div>
+                                  )}
+                              </button>
+                          );
+                      })}
+                  </div>
+                  {selectedDateFilter && (
+                      <button 
+                        onClick={() => setSelectedDateFilter(null)}
+                        className="w-full mt-4 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                          Limpar filtro de dia
+                      </button>
+                  )}
+              </div>
           </div>
-        </div>
 
-        {/* Tabs and Sort */}
-        <div className="flex justify-between items-center border-b border-gray-200 mb-4">
-            <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-                <button
-                    onClick={() => setActiveTab('pending')}
-                    className={`${
-                        activeTab === 'pending'
-                            ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-all`}
-                >
-                    Tarefas Pendentes ({pendingTasksInMonth.length})
-                </button>
-                <button
-                    onClick={() => setActiveTab('completed')}
-                    className={`${
-                        activeTab === 'completed'
-                            ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-all`}
-                >
-                    Tarefas Concluídas ({completedTasksInMonth.length})
-                </button>
-            </nav>
-            <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-gray-400 uppercase">Vencimento:</span>
-                <button 
-                  onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-                  className="p-1.5 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors flex items-center gap-1 shadow-sm border border-blue-100"
-                >
-                    {sortDirection === 'asc' ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />}
-                    <span className="text-xs font-bold">{sortDirection === 'asc' ? 'ASC' : 'DESC'}</span>
-                </button>
-            </div>
-        </div>
-        
-        {/* Task List */}
-        <div className="space-y-3">
-          {activeTab === 'pending' && (
-            <>
-              {pendingTasksInMonth.map(task => {
-                  const operationName = operationsById.get(task.operationId)?.name || 'N/A';
-                  return (
-                     <div key={task.id} className={`p-4 rounded-md flex justify-between items-center ${task.status === TaskStatus.OVERDUE ? 'bg-red-50 border-l-4 border-red-500' : 'bg-yellow-50 border-l-4 border-yellow-500'}`}>
-                        <div className="flex-1">
-                            <p className="font-semibold text-gray-800">{task.ruleName}</p>
-                            <p className="text-sm text-gray-600">
-                                <span className="font-medium">Operação:</span> {operationName}
-                            </p>
-                            <p className={`text-sm ${task.status === TaskStatus.OVERDUE ? 'text-red-700' : 'text-yellow-800'}`}>
-                                Vencimento: {new Date(task.dueDate).toLocaleDateString('pt-BR')}
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                             <button onClick={() => setTaskToEdit(task)} className="text-gray-400 hover:text-blue-600 p-1 rounded-full" title="Editar Tarefa">
-                                <PencilIcon className="w-5 h-5" />
-                            </button>
-                            <button onClick={() => setTaskToDelete(task)} className="text-gray-400 hover:text-red-600 p-1 rounded-full" title="Deletar Tarefa">
-                                <TrashIcon className="w-5 h-5" />
-                            </button>
-                            <button onClick={() => handleCompleteTaskClick(task)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
-                                <CheckCircleIcon className="w-4 h-4" /> Completar
-                            </button>
-                        </div>
-                    </div>
-                  );
-              })}
-              {pendingTasksInMonth.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <p>Nenhuma tarefa pendente encontrada para os filtros selecionados.</p>
-                </div>
+          {/* Main Content Area */}
+          <div className="flex-1 min-w-0">
+              <div className="flex justify-between items-center mb-4 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                  {viewMode === 'list' ? (
+                      <div className="flex space-x-2">
+                          <button
+                              onClick={() => setActiveTab('pending')}
+                              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'pending' ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                          >
+                              Pendentes ({pendingTasks.length})
+                          </button>
+                          <button
+                              onClick={() => setActiveTab('completed')}
+                              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'completed' ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                          >
+                              Concluídas ({completedTasks.length})
+                          </button>
+                      </div>
+                  ) : (
+                      <div className="text-sm font-bold text-gray-700 px-4">Quadro Kanban</div>
+                  )}
+
+                  <div className="flex items-center gap-2 pr-2">
+                      {viewMode === 'list' && (
+                          <button 
+                            onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors flex items-center gap-1 mr-2"
+                            title="Ordenar por Data"
+                          >
+                              {sortDirection === 'asc' ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />}
+                          </button>
+                      )}
+                      <div className="flex bg-gray-100 p-1 rounded-lg">
+                          <button 
+                            onClick={() => setViewMode('list')}
+                            className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            title="Visualização em Lista"
+                          >
+                              <ViewListIcon className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => setViewMode('kanban')}
+                            className={`p-1.5 rounded-md transition-colors ${viewMode === 'kanban' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            title="Visualização em Quadro"
+                          >
+                              <ViewBoardsIcon className="w-4 h-4" />
+                          </button>
+                      </div>
+                  </div>
+              </div>
+
+              {/* List View */}
+              {viewMode === 'list' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {activeTab === 'pending' ? (
+                          pendingTasks.length > 0 ? pendingTasks.map(t => renderTaskCard(t, false)) : (
+                              <div className="col-span-full py-12 text-center bg-white rounded-xl border border-dashed border-gray-300">
+                                  <CheckCircleIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                  <h3 className="text-lg font-medium text-gray-900">Tudo limpo por aqui!</h3>
+                                  <p className="text-gray-500 text-sm">Nenhuma tarefa pendente para os filtros selecionados.</p>
+                              </div>
+                          )
+                      ) : (
+                          completedTasks.length > 0 ? completedTasks.map(t => renderTaskCard(t, true)) : (
+                              <div className="col-span-full py-12 text-center bg-white rounded-xl border border-dashed border-gray-300">
+                                  <p className="text-gray-500 text-sm">Nenhuma tarefa concluída encontrada.</p>
+                              </div>
+                          )
+                      )}
+                  </div>
               )}
-            </>
-          )}
 
-          {activeTab === 'completed' && (
-            <>
-                {completedTasksInMonth.map(task => {
-                    const op = operationsById.get(task.operationId);
-                    const operationName = op?.name || 'N/A';
-                    const completionEvent = op?.events.find(e => e.completedTaskId === task.id);
-                    return (
-                        <div key={task.id} className="p-4 rounded-md flex justify-between items-center bg-green-50 border-l-4 border-green-500">
-                            <div className="flex-1">
-                                <p className="font-semibold text-gray-800">{task.ruleName}</p>
-                                <p className="text-sm text-gray-600">
-                                    <span className="font-medium">Operação:</span> {operationName}
-                                </p>
-                                <p className="text-sm text-green-700">
-                                    Concluída em: {completionEvent ? new Date(completionEvent.date).toLocaleDateString('pt-BR') : 'N/A'}
-                                </p>
-                            </div>
-                        </div>
-                    );
-                })}
-                {completedTasksInMonth.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <p>Nenhuma tarefa concluída encontrada para os filtros selecionados.</p>
-                    </div>
-                )}
-            </>
-          )}
-        </div>
+              {/* Kanban View */}
+              {viewMode === 'kanban' && (
+                  <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar items-start">
+                      {/* Column: Atrasadas */}
+                      <div className="w-80 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-200 flex flex-col max-h-[800px]">
+                          <div className="p-3 border-b border-gray-200 bg-red-50/50 rounded-t-xl">
+                              <h3 className="font-bold text-red-800 text-sm flex justify-between items-center">
+                                  Atrasadas <span className="bg-red-200 text-red-800 px-2 py-0.5 rounded-full text-xs">{kanbanColumns.overdue.length}</span>
+                              </h3>
+                          </div>
+                          <div className="p-3 overflow-y-auto flex-1 space-y-3">
+                              {kanbanColumns.overdue.map(t => renderTaskCard(t, false))}
+                              {kanbanColumns.overdue.length === 0 && <p className="text-xs text-center text-gray-400 py-4">Nenhuma tarefa</p>}
+                          </div>
+                      </div>
+
+                      {/* Column: Hoje */}
+                      <div className="w-80 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-200 flex flex-col max-h-[800px]">
+                          <div className="p-3 border-b border-gray-200 bg-blue-50/50 rounded-t-xl">
+                              <h3 className="font-bold text-blue-800 text-sm flex justify-between items-center">
+                                  Para Hoje <span className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full text-xs">{kanbanColumns.today.length}</span>
+                              </h3>
+                          </div>
+                          <div className="p-3 overflow-y-auto flex-1 space-y-3">
+                              {kanbanColumns.today.map(t => renderTaskCard(t, false))}
+                              {kanbanColumns.today.length === 0 && <p className="text-xs text-center text-gray-400 py-4">Nenhuma tarefa</p>}
+                          </div>
+                      </div>
+
+                      {/* Column: Próximos 7 dias */}
+                      <div className="w-80 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-200 flex flex-col max-h-[800px]">
+                          <div className="p-3 border-b border-gray-200 bg-yellow-50/50 rounded-t-xl">
+                              <h3 className="font-bold text-yellow-800 text-sm flex justify-between items-center">
+                                  Próximos 7 dias <span className="bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full text-xs">{kanbanColumns.thisWeek.length}</span>
+                              </h3>
+                          </div>
+                          <div className="p-3 overflow-y-auto flex-1 space-y-3">
+                              {kanbanColumns.thisWeek.map(t => renderTaskCard(t, false))}
+                              {kanbanColumns.thisWeek.length === 0 && <p className="text-xs text-center text-gray-400 py-4">Nenhuma tarefa</p>}
+                          </div>
+                      </div>
+
+                      {/* Column: Futuras */}
+                      <div className="w-80 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-200 flex flex-col max-h-[800px]">
+                          <div className="p-3 border-b border-gray-200 bg-gray-100/50 rounded-t-xl">
+                              <h3 className="font-bold text-gray-700 text-sm flex justify-between items-center">
+                                  Futuras <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full text-xs">{kanbanColumns.later.length}</span>
+                              </h3>
+                          </div>
+                          <div className="p-3 overflow-y-auto flex-1 space-y-3">
+                              {kanbanColumns.later.map(t => renderTaskCard(t, false))}
+                              {kanbanColumns.later.length === 0 && <p className="text-xs text-center text-gray-400 py-4">Nenhuma tarefa</p>}
+                          </div>
+                      </div>
+                      
+                      {/* Column: Concluídas */}
+                      <div className="w-80 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-200 flex flex-col max-h-[800px] opacity-70 hover:opacity-100 transition-opacity">
+                          <div className="p-3 border-b border-gray-200 bg-green-50/50 rounded-t-xl">
+                              <h3 className="font-bold text-green-800 text-sm flex justify-between items-center">
+                                  Concluídas <span className="bg-green-200 text-green-800 px-2 py-0.5 rounded-full text-xs">{kanbanColumns.completed.length}</span>
+                              </h3>
+                          </div>
+                          <div className="p-3 overflow-y-auto flex-1 space-y-3">
+                              {kanbanColumns.completed.map(t => renderTaskCard(t, true))}
+                              {kanbanColumns.completed.length === 0 && <p className="text-xs text-center text-gray-400 py-4">Nenhuma tarefa</p>}
+                          </div>
+                      </div>
+                  </div>
+              )}
+          </div>
       </div>
     </div>
   );

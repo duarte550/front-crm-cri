@@ -471,6 +471,7 @@ const App: React.FC = () => {
                         onAddOperation={handleAddOperation}
                         onOpenNewTaskModal={openNewTaskModal}
                         onDeleteOperation={handleDeleteOperation}
+                        onUpdateOperation={handleUpdateOperation}
                     />
                 </>
             );
@@ -521,6 +522,7 @@ const App: React.FC = () => {
                 onAddOperation={handleAddOperation}
                 onOpenNewTaskModal={openNewTaskModal}
                 onDeleteOperation={handleDeleteOperation}
+                onUpdateOperation={handleUpdateOperation}
             />;
     }
   }

@@ -1,9 +1,11 @@
 
 import React, { useState, useMemo } from 'react';
-import type { Operation, Area } from '../types';
-import { WatchlistStatus } from '../types';
+import type { Operation, Area, Task, Event, Rating, Sentiment, RatingHistoryEntry } from '../types';
+import { WatchlistStatus, TaskStatus } from '../types';
 import OperationForm from './OperationForm';
 import AnalystCalendar from './AnalystCalendar';
+import EventForm from './EventForm';
+import ReviewCompletionForm from './ReviewCompletionForm';
 import { PlusCircleIcon, EyeIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
 import Modal from './Modal';
 
@@ -13,6 +15,7 @@ interface OverviewDashboardProps {
   onAddOperation: (newOperationData: any) => void;
   onOpenNewTaskModal: (operationId: number) => void;
   onDeleteOperation: (id: number) => void;
+  onUpdateOperation: (updatedOperation: Operation) => void;
 }
 
 type SortField = 'name' | 'maturityDate' | 'nextReviewGerencial' | 'nextReviewPolitica';
@@ -54,10 +57,16 @@ const formatDate = (dateString: string | null | undefined) => {
 };
 
 
-const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSelectOperation, onAddOperation, onOpenNewTaskModal, onDeleteOperation }) => {
+const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSelectOperation, onAddOperation, onOpenNewTaskModal, onDeleteOperation, onUpdateOperation }) => {
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [operationToDelete, setOperationToDelete] = useState<Operation | null>(null);
   const [areaFilter, setAreaFilter] = useState<'All' | Area>('All');
+  
+  // Task Completion State
+  const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
+  const [isEventFormOpen, setIsEventFormOpen] = useState(false);
+  const [reviewTaskToComplete, setReviewTaskToComplete] = useState<Task | null>(null);
+  const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
   
   // Sorting State
   const [sortConfig, setSortConfig] = useState<{field: SortField, direction: SortDirection}>({
@@ -104,6 +113,79 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
       return operations.flatMap(op => op.tasks || []);
   }, [operations]);
 
+  const operationsById = useMemo(() => new Map(operations.map(op => [op.id, op])), [operations]);
+
+  const handleCompleteTaskClick = (task: Task) => {
+    if (task.ruleName === 'Revisão Gerencial' || task.ruleName === 'Revisão Política') {
+        setReviewTaskToComplete(task);
+        setIsReviewFormOpen(true);
+    } else {
+        setTaskToComplete(task);
+        setIsEventFormOpen(true);
+    }
+  };
+
+  const handleAddEvent = (newEvent: Omit<Event, 'id'>) => {
+      if (!taskToComplete) return;
+
+      const operationToUpdate = operationsById.get(taskToComplete.operationId);
+      if (operationToUpdate) {
+        const eventToSave: Partial<Event> = {
+            ...newEvent,
+            completedTaskId: taskToComplete.id,
+        };
+        const updatedTasks = operationToUpdate.tasks.map(t => t.id === taskToComplete.id ? {...t, status: TaskStatus.COMPLETED} : t);
+
+        const updatedOperation = {
+            ...operationToUpdate,
+            events: [...operationToUpdate.events, { ...eventToSave, id: Date.now() } as Event],
+            tasks: updatedTasks,
+        };
+        onUpdateOperation(updatedOperation);
+      }
+      
+      setTaskToComplete(null);
+      setIsEventFormOpen(false);
+  };
+
+  const handleSaveReview = (data: { event: Omit<Event, 'id'>, ratingOp: Rating, ratingGroup: Rating, sentiment: Sentiment }) => {
+    if (!reviewTaskToComplete) return;
+    const operationToUpdate = operationsById.get(reviewTaskToComplete.operationId);
+    if (!operationToUpdate) return;
+
+    const newEventId = Date.now();
+    const eventToSave: Event = {
+        ...data.event,
+        id: newEventId,
+        completedTaskId: reviewTaskToComplete?.id
+    };
+
+    const newHistoryEntry: RatingHistoryEntry = {
+        id: Date.now() + 1,
+        date: eventToSave.date,
+        ratingOperation: data.ratingOp,
+        ratingGroup: data.ratingGroup,
+        watchlist: operationToUpdate.watchlist,
+        sentiment: data.sentiment,
+        eventId: newEventId,
+    };
+
+    const updatedTasks = operationToUpdate.tasks.map(t => t.id === reviewTaskToComplete.id ? {...t, status: TaskStatus.COMPLETED} : t);
+
+    const updatedOperation: Operation = {
+        ...operationToUpdate,
+        ratingOperation: data.ratingOp,
+        ratingGroup: data.ratingGroup,
+        events: [...operationToUpdate.events, eventToSave],
+        ratingHistory: [...operationToUpdate.ratingHistory, newHistoryEntry],
+        tasks: updatedTasks
+    };
+    
+    onUpdateOperation(updatedOperation);
+    setReviewTaskToComplete(null);
+    setIsReviewFormOpen(false);
+  };
+
   const confirmDelete = () => {
     if (operationToDelete) {
       onDeleteOperation(operationToDelete.id);
@@ -120,6 +202,22 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
 
   return (
     <div className="space-y-8">
+      {isEventFormOpen && taskToComplete && (
+        <EventForm 
+            onClose={() => { setIsEventFormOpen(false); setTaskToComplete(null); }} 
+            onSave={handleAddEvent}
+            analystName={operationsById.get(taskToComplete.operationId)?.responsibleAnalyst || ''}
+            prefilledTitle={`Conclusão: ${taskToComplete.ruleName}`}
+        />
+      )}
+      {isReviewFormOpen && reviewTaskToComplete && (
+        <ReviewCompletionForm
+            task={reviewTaskToComplete}
+            operation={operationsById.get(reviewTaskToComplete.operationId)!}
+            onClose={() => { setIsReviewFormOpen(false); setReviewTaskToComplete(null); }}
+            onSave={handleSaveReview}
+        />
+      )}
       {isFormOpen && (
         <OperationForm 
             onClose={() => setIsFormOpen(false)} 
@@ -279,7 +377,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
 
       <div className="bg-white p-6 rounded-lg shadow-lg">
         <h2 className="text-xl font-bold text-gray-700 mb-4">Calendário do Analista (Mês Atual)</h2>
-        <AnalystCalendar tasks={allTasks} operations={operations} />
+        <AnalystCalendar tasks={allTasks} operations={operations} onCompleteTask={handleCompleteTaskClick} />
       </div>
     </div>
   );
