@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import type { Event } from '../types';
 import Modal from './Modal';
 import { Label, Input, Select, FormRow } from './UI';
-// @ts-ignore
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
