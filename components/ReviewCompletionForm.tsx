@@ -4,7 +4,6 @@ import type { Task, Operation, Event, Rating, Sentiment } from '../types';
 import { ratingOptions, Sentiment as SentimentEnum } from '../types';
 import Modal from './Modal';
 import { Label, Input, Select } from './UI';
-// @ts-ignore
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
