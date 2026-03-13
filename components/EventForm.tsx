@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import type { Event } from '../types';
 import Modal from './Modal';
-import { Label, Input, Select, Textarea, FormRow } from './UI';
+import { Label, Input, Select, FormRow } from './UI';
+import MDEditor from '@uiw/react-md-editor';
 
 interface EventFormProps {
   onClose: () => void;
@@ -89,13 +90,23 @@ const EventForm: React.FC<EventFormProps> = ({ onClose, onSave, analystName, pre
             <Label htmlFor="title">Título</Label>
             <Input id="title" type="text" value={title} onChange={e => setTitle(e.target.value)} required />
         </div>
-        <div>
+        <div data-color-mode="light">
             <Label htmlFor="description">Descrição</Label>
-            <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={4} required />
+            <MDEditor 
+                id="description" 
+                value={description} 
+                onChange={val => setDescription(val || '')} 
+                height={200}
+            />
         </div>
-        <div>
+        <div data-color-mode="light">
             <Label htmlFor="nextSteps">Próximos Passos</Label>
-            <Textarea id="nextSteps" value={nextSteps} onChange={e => setNextSteps(e.target.value)} rows={2} />
+            <MDEditor 
+                id="nextSteps" 
+                value={nextSteps} 
+                onChange={val => setNextSteps(val || '')} 
+                height={150}
+            />
         </div>
         <div className="flex justify-end gap-4 pt-4">
           <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancelar</button>
