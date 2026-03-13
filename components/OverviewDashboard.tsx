@@ -13,7 +13,7 @@ interface OverviewDashboardProps {
   operations: Operation[];
   onSelectOperation: (id: number) => void;
   onAddOperation: (newOperationData: any) => void;
-  onOpenNewTaskModal: (operationId: number) => void;
+  onOpenNewTaskModal: (operationId?: number) => void;
   onDeleteOperation: (id: number) => void;
   onUpdateOperation: (updatedOperation: Operation) => void;
 }
@@ -377,7 +377,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({ operations, onSel
 
       <div className="bg-white p-6 rounded-lg shadow-lg">
         <h2 className="text-xl font-bold text-gray-700 mb-4">Calendário do Analista (Mês Atual)</h2>
-        <AnalystCalendar tasks={allTasks} operations={operations} onCompleteTask={handleCompleteTaskClick} />
+        <AnalystCalendar tasks={allTasks} operations={operations} onCompleteTask={handleCompleteTaskClick} onOpenNewTaskModal={onOpenNewTaskModal} />
       </div>
     </div>
   );
