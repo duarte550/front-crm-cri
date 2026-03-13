@@ -8,6 +8,7 @@ interface CreditReviewsPageProps {
   operations: Operation[];
   onUpdateOperation: (updatedOperation: Operation) => void;
   onCompleteReview: (task: Task) => void;
+  onSelectOperation: (id: number) => void;
   apiUrl: string;
   showToast: (message: string, type: 'success' | 'error') => void;
 }
@@ -15,7 +16,7 @@ interface CreditReviewsPageProps {
   type SortField = 'name' | 'maturityDate' | 'nextReviewGerencial' | 'nextReviewPolitica' | 'estimatedDate';
   type SortDirection = 'asc' | 'desc';
 
-  const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpdateOperation, onCompleteReview, apiUrl, showToast }) => {
+  const CreditReviewsPage: React.FC<CreditReviewsPageProps> = ({ operations, onUpdateOperation, onCompleteReview, onSelectOperation, apiUrl, showToast }) => {
     // Filters
     const [analystFilter, setAnalystFilter] = useState('All');
     const [areaFilter, setAreaFilter] = useState<'All' | Area>('All');
@@ -145,8 +146,26 @@ interface CreditReviewsPageProps {
     const getStatusBadge = (dueDate: string) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const due = new Date(dueDate);
+      
+      let due = new Date(dueDate);
+      try {
+          const datePart = dueDate.split('T')[0];
+          const parts = datePart.split('-');
+          if (parts.length === 3) {
+              const [year, month, day] = parts.map(Number);
+              due = new Date(year, month - 1, day);
+          }
+      } catch (e) {
+          // fallback to standard parsing
+      }
       due.setHours(0, 0, 0, 0);
+      
+      const isCurrentMonth = today.getMonth() === due.getMonth() && today.getFullYear() === due.getFullYear();
+      
+      if (isCurrentMonth) {
+          return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">Esse mês</span>;
+      }
+
       const diffDays = (due.getTime() - today.getTime()) / (1000 * 3600 * 24);
 
       if (diffDays < 0) {
@@ -158,13 +177,31 @@ interface CreditReviewsPageProps {
       return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">No Prazo</span>;
   };
 
+  const formatMonthYear = (dateString: string) => {
+      try {
+          const datePart = dateString.split('T')[0];
+          const parts = datePart.split('-');
+          if (parts.length !== 3) return 'Data Inválida';
+          
+          const [year, month, day] = parts.map(Number);
+          const date = new Date(year, month - 1, day);
+          
+          if (isNaN(date.getTime())) return 'Data Inválida';
+          
+          const monthNames = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+          return `${monthNames[date.getMonth()]}/${date.getFullYear().toString().slice(-2)}`;
+      } catch (e) {
+          return 'Erro na Data';
+      }
+  };
+
   const ReviewInfoCell: React.FC<{ task: Task | null | undefined }> = ({ task }) => {
     if (!task) {
         return <span className="text-gray-400">N/A</span>;
     }
     return (
         <div className="flex items-center gap-2">
-            <span>{new Date(task.dueDate).toLocaleDateString('pt-BR')}</span>
+            <span>{formatMonthYear(task.dueDate)}</span>
             {getStatusBadge(task.dueDate)}
         </div>
     );
@@ -259,10 +296,15 @@ interface CreditReviewsPageProps {
 
                         return (
                             <tr key={op.id} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{op.name}</td>
+                                <td 
+                                    className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
+                                    onClick={() => onSelectOperation(op.id)}
+                                >
+                                    {op.name}
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{op.responsibleAnalyst}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-700">
-                                    {op.maturityDate ? new Date(op.maturityDate).toLocaleDateString('pt-BR') : 'N/A'}
+                                    {op.maturityDate ? formatMonthYear(op.maturityDate) : 'N/A'}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     <ReviewInfoCell task={gerencialTask} />
