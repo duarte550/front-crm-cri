@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Event } from '../types';
 import { PlusCircleIcon, PencilIcon, DownloadIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
+import MDEditor from '@uiw/react-md-editor';
 
 interface EventHistoryProps {
   events: Event[];
@@ -113,10 +114,20 @@ const EventHistory: React.FC<EventHistoryProps> = ({
               </div>
             </div>
             {expandedEventId === event.id && (
-              <div className="mt-4 pt-4 border-t border-gray-200 space-y-3 text-sm text-gray-700 animate-in fade-in slide-in-from-top-2 duration-300">
-                <p><strong className="font-semibold text-gray-600">Descrição:</strong> {event.description}</p>
+              <div className="mt-4 pt-4 border-t border-gray-200 space-y-3 text-sm text-gray-700 animate-in fade-in slide-in-from-top-2 duration-300" data-color-mode="light">
+                <div>
+                    <strong className="font-semibold text-gray-600 block mb-1">Descrição:</strong> 
+                    <div className="bg-white p-3 rounded border border-gray-100">
+                        <MDEditor.Markdown source={event.description} style={{ background: 'transparent', color: 'inherit' }} />
+                    </div>
+                </div>
                 <p><strong className="font-semibold text-gray-600">Registrado por:</strong> {event.registeredBy}</p>
-                <p><strong className="font-semibold text-gray-600">Próximos Passos:</strong> {event.nextSteps || 'Nenhum'}</p>
+                <div>
+                    <strong className="font-semibold text-gray-600 block mb-1">Próximos Passos:</strong> 
+                    <div className="bg-white p-3 rounded border border-gray-100">
+                        {event.nextSteps ? <MDEditor.Markdown source={event.nextSteps} style={{ background: 'transparent', color: 'inherit' }} /> : 'Nenhum'}
+                    </div>
+                </div>
                 {event.completedTaskId && <p className="text-xs text-gray-400 italic pt-2 border-t mt-2">ID Tarefa Concluída: {event.completedTaskId}</p>}
               </div>
             )}
