@@ -25,10 +25,25 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
   const [areaFilter, setAreaFilter] = useState<'All' | Area>('All');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'completed'
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [selectedRuleNames, setSelectedRuleNames] = useState<string[]>([]);
+  const [ruleSearchTerm, setRuleSearchTerm] = useState('');
+  const [isRuleDropdownOpen, setIsRuleDropdownOpen] = useState(false);
 
   const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
   const [isEventFormOpen, setIsEventFormOpen] = useState(false);
   
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+              setIsRuleDropdownOpen(false);
+          }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [reviewTaskToComplete, setReviewTaskToComplete] = useState<Task | null>(null);
   const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
 
@@ -36,8 +51,19 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
 
   const analysts = useMemo(() => ['Todos', ...new Set(operations.map(op => op.responsibleAnalyst))], [operations]);
-  const ruleNames = useMemo(() => ['Todos', ...new Set(allTasks.map(task => task.ruleName))], [allTasks]);
   const operationsById = useMemo(() => new Map(operations.map(op => [op.id, op])), [operations]);
+
+  const availableRuleNames = useMemo(() => {
+    const filteredByOthers = allTasks.filter(task => {
+        const op = operationsById.get(task.operationId);
+        if (!op) return false;
+        if (areaFilter !== 'All' && op.area !== areaFilter) return false;
+        if (selectedOperationId !== 'Todos' && task.operationId !== parseInt(selectedOperationId, 10)) return false;
+        if (selectedAnalyst !== 'Todos' && op.responsibleAnalyst !== selectedAnalyst) return false;
+        return true;
+    });
+    return [...new Set(filteredByOthers.map(task => task.ruleName))].sort();
+  }, [allTasks, operationsById, areaFilter, selectedOperationId, selectedAnalyst]);
 
   const filteredTasks = useMemo(() => {
     return allTasks.filter(task => {
@@ -46,10 +72,10 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
       if (areaFilter !== 'All' && op.area !== areaFilter) return false;
       if (selectedOperationId !== 'Todos' && task.operationId !== parseInt(selectedOperationId, 10)) return false;
       if (selectedAnalyst !== 'Todos' && op.responsibleAnalyst !== selectedAnalyst) return false;
-      if (selectedRuleName !== 'Todos' && task.ruleName !== selectedRuleName) return false;
+      if (selectedRuleNames.length > 0 && !selectedRuleNames.includes(task.ruleName)) return false;
       return true;
     });
-  }, [allTasks, operationsById, areaFilter, selectedOperationId, selectedAnalyst, selectedRuleName]);
+  }, [allTasks, operationsById, areaFilter, selectedOperationId, selectedAnalyst, selectedRuleNames]);
 
 
   const pendingTasksInMonth = useMemo(() => {
@@ -263,10 +289,50 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
                 </select>
             </div>
              <div>
-                <label htmlFor="task-type-filter" className="block text-sm font-medium text-gray-700">Tipo de Tarefa</label>
-                <select id="task-type-filter" value={selectedRuleName} onChange={e => setSelectedRuleName(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                    {ruleNames.map(name => <option key={name} value={name}>{name}</option>)}
-                </select>
+                <label className="block text-sm font-medium text-gray-700">Tipo de Tarefa</label>
+                <div className="relative mt-1" ref={dropdownRef}>
+                    <div 
+                        className="block w-full rounded-md border border-gray-300 shadow-sm bg-white px-3 py-2 text-left cursor-pointer sm:text-sm"
+                        onClick={() => setIsRuleDropdownOpen(!isRuleDropdownOpen)}
+                    >
+                        {selectedRuleNames.length === 0 ? 'Todos' : `${selectedRuleNames.length} selecionados`}
+                    </div>
+                    {isRuleDropdownOpen && (
+                        <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
+                            <div className="px-2 py-2 sticky top-0 bg-white border-b border-gray-100">
+                                <input 
+                                    type="text" 
+                                    placeholder="Buscar tipo..." 
+                                    className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                                    value={ruleSearchTerm}
+                                    onChange={e => setRuleSearchTerm(e.target.value)}
+                                    onClick={e => e.stopPropagation()}
+                                />
+                            </div>
+                            <div 
+                                className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2"
+                                onClick={() => setSelectedRuleNames([])}
+                            >
+                                <input type="checkbox" checked={selectedRuleNames.length === 0} readOnly className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                <span>Todos</span>
+                            </div>
+                            {availableRuleNames.filter(name => name.toLowerCase().includes(ruleSearchTerm.toLowerCase())).map(name => (
+                                <div 
+                                    key={name}
+                                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2"
+                                    onClick={() => {
+                                        setSelectedRuleNames(prev => 
+                                            prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+                                        );
+                                    }}
+                                >
+                                    <input type="checkbox" checked={selectedRuleNames.includes(name)} readOnly className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                    <span>{name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
             <div>
                 <label className="block text-sm font-medium text-gray-700 text-center">Mês</label>
