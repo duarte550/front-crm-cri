@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import type { Task, Operation, Event, Rating, Sentiment } from '../types';
 import { ratingOptions, Sentiment as SentimentEnum } from '../types';
 import Modal from './Modal';
-import { Label, Input, Select, Textarea } from './UI';
+import { Label, Input, Select } from './UI';
+import MDEditor from '@uiw/react-md-editor';
 
 interface ReviewCompletionFormProps {
   task: Task;
@@ -81,13 +82,26 @@ const ReviewCompletionForm: React.FC<ReviewCompletionFormProps> = ({ task, opera
             </div>
         </div>
 
-        <div>
+        <div data-color-mode="light">
             <Label htmlFor="review-description">Resumo da Revisão</Label>
-            <Textarea id="review-description" value={description} onChange={e => setDescription(e.target.value)} rows={4} required placeholder="Descreva os principais pontos analisados..." disabled={isSubmitting} />
+            <MDEditor 
+                id="review-description" 
+                value={description} 
+                onChange={val => setDescription(val || '')} 
+                height={200}
+                previewOptions={{
+                    rehypePlugins: []
+                }}
+            />
         </div>
-        <div>
+        <div data-color-mode="light">
             <Label htmlFor="review-next-steps">Próximos Passos</Label>
-            <Textarea id="review-next-steps" value={nextSteps} onChange={e => setNextSteps(e.target.value)} rows={2} disabled={isSubmitting} />
+            <MDEditor 
+                id="review-next-steps" 
+                value={nextSteps} 
+                onChange={val => setNextSteps(val || '')} 
+                height={150}
+            />
         </div>
 
         <div className="flex justify-end gap-4 pt-4 border-t">
