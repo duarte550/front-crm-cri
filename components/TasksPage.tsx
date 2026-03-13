@@ -40,9 +40,18 @@ const getInitials = (name: string) => {
 
 const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOperation, onOpenNewTaskModal, onDeleteTask, onEditTask }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedAnalyst, setSelectedAnalyst] = useState('Todos');
-  const [selectedOperationId, setSelectedOperationId] = useState('Todos');
-  const [areaFilter, setAreaFilter] = useState<'All' | Area>('All');
+  const [selectedAnalysts, setSelectedAnalysts] = useState<string[]>([]);
+  const [analystSearchTerm, setAnalystSearchTerm] = useState('');
+  const [isAnalystDropdownOpen, setIsAnalystDropdownOpen] = useState(false);
+
+  const [selectedOperationIds, setSelectedOperationIds] = useState<number[]>([]);
+  const [operationSearchTerm, setOperationSearchTerm] = useState('');
+  const [isOperationDropdownOpen, setIsOperationDropdownOpen] = useState(false);
+
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
+  const [areaSearchTerm, setAreaSearchTerm] = useState('');
+  const [isAreaDropdownOpen, setIsAreaDropdownOpen] = useState(false);
+
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'completed'
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [selectedRuleNames, setSelectedRuleNames] = useState<string[]>([]);
@@ -60,12 +69,24 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
 
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const ruleDropdownRef = useRef<HTMLDivElement>(null);
+  const areaDropdownRef = useRef<HTMLDivElement>(null);
+  const analystDropdownRef = useRef<HTMLDivElement>(null);
+  const operationDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
-          if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+          if (ruleDropdownRef.current && !ruleDropdownRef.current.contains(event.target as Node)) {
               setIsRuleDropdownOpen(false);
+          }
+          if (areaDropdownRef.current && !areaDropdownRef.current.contains(event.target as Node)) {
+              setIsAreaDropdownOpen(false);
+          }
+          if (analystDropdownRef.current && !analystDropdownRef.current.contains(event.target as Node)) {
+              setIsAnalystDropdownOpen(false);
+          }
+          if (operationDropdownRef.current && !operationDropdownRef.current.contains(event.target as Node)) {
+              setIsOperationDropdownOpen(false);
           }
       };
       document.addEventListener('mousedown', handleClickOutside);
@@ -79,21 +100,21 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
     const filteredByOthers = allTasks.filter(task => {
         const op = operationsById.get(task.operationId);
         if (!op) return false;
-        if (areaFilter !== 'All' && op.area !== areaFilter) return false;
-        if (selectedOperationId !== 'Todos' && task.operationId !== parseInt(selectedOperationId, 10)) return false;
-        if (selectedAnalyst !== 'Todos' && op.responsibleAnalyst !== selectedAnalyst) return false;
+        if (selectedAreas.length > 0 && !selectedAreas.includes(op.area)) return false;
+        if (selectedOperationIds.length > 0 && !selectedOperationIds.includes(task.operationId)) return false;
+        if (selectedAnalysts.length > 0 && !selectedAnalysts.includes(op.responsibleAnalyst)) return false;
         return true;
     });
     return [...new Set(filteredByOthers.map(task => task.ruleName))].sort();
-  }, [allTasks, operationsById, areaFilter, selectedOperationId, selectedAnalyst]);
+  }, [allTasks, operationsById, selectedAreas, selectedOperationIds, selectedAnalysts]);
 
   const filteredTasks = useMemo(() => {
     return allTasks.filter(task => {
       const op = operationsById.get(task.operationId);
       if (!op) return false;
-      if (areaFilter !== 'All' && op.area !== areaFilter) return false;
-      if (selectedOperationId !== 'Todos' && task.operationId !== parseInt(selectedOperationId, 10)) return false;
-      if (selectedAnalyst !== 'Todos' && op.responsibleAnalyst !== selectedAnalyst) return false;
+      if (selectedAreas.length > 0 && !selectedAreas.includes(op.area)) return false;
+      if (selectedOperationIds.length > 0 && !selectedOperationIds.includes(task.operationId)) return false;
+      if (selectedAnalysts.length > 0 && !selectedAnalysts.includes(op.responsibleAnalyst)) return false;
       if (selectedRuleNames.length > 0 && !selectedRuleNames.includes(task.ruleName)) return false;
       
       // Filter by month
@@ -117,7 +138,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
 
       return true;
     });
-  }, [allTasks, operationsById, areaFilter, selectedOperationId, selectedAnalyst, selectedRuleNames, currentMonth, selectedDateFilter]);
+  }, [allTasks, operationsById, selectedAreas, selectedOperationIds, selectedAnalysts, selectedRuleNames, currentMonth, selectedDateFilter]);
 
   const pendingTasks = useMemo(() => {
       const tasks = filteredTasks.filter(task => task.status !== TaskStatus.COMPLETED);
@@ -244,9 +265,9 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
       const allMonthTasks = allTasks.filter(task => {
           const op = operationsById.get(task.operationId);
           if (!op) return false;
-          if (areaFilter !== 'All' && op.area !== areaFilter) return false;
-          if (selectedOperationId !== 'Todos' && task.operationId !== parseInt(selectedOperationId, 10)) return false;
-          if (selectedAnalyst !== 'Todos' && op.responsibleAnalyst !== selectedAnalyst) return false;
+          if (selectedAreas.length > 0 && !selectedAreas.includes(op.area)) return false;
+          if (selectedOperationIds.length > 0 && !selectedOperationIds.includes(task.operationId)) return false;
+          if (selectedAnalysts.length > 0 && !selectedAnalysts.includes(op.responsibleAnalyst)) return false;
           if (selectedRuleNames.length > 0 && !selectedRuleNames.includes(task.ruleName)) return false;
           
           const dueDate = new Date(task.dueDate);
@@ -275,7 +296,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
           else current.pending++;
       });
       return counts;
-  }, [allTasks, operationsById, areaFilter, selectedOperationId, selectedAnalyst, selectedRuleNames, currentMonth]);
+  }, [allTasks, operationsById, selectedAreas, selectedOperationIds, selectedAnalysts, selectedRuleNames, currentMonth]);
 
   // Kanban Columns
   const kanbanColumns = useMemo(() => {
@@ -469,28 +490,109 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Área</label>
-                        <select value={areaFilter} onChange={e => setAreaFilter(e.target.value as any)} className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2">
-                            <option value="All">Todas</option>
-                            <option value="CRI">CRI</option>
-                            <option value="Capital Solutions">Capital Solutions</option>
-                        </select>
+                        <div className="relative" ref={areaDropdownRef}>
+                            <div 
+                                className="w-full rounded-md border border-gray-300 shadow-sm bg-white px-3 py-2 text-left cursor-pointer text-sm"
+                                onClick={() => setIsAreaDropdownOpen(!isAreaDropdownOpen)}
+                            >
+                                {selectedAreas.length === 0 ? 'Todas' : `${selectedAreas.length} selecionadas`}
+                            </div>
+                            {isAreaDropdownOpen && (
+                                <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-sm ring-1 ring-black ring-opacity-5 overflow-auto">
+                                    <div className="px-2 py-2 sticky top-0 bg-white border-b border-gray-100">
+                                        <input 
+                                            type="text" placeholder="Buscar área..." 
+                                            className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
+                                            value={areaSearchTerm} onChange={e => setAreaSearchTerm(e.target.value)} onClick={e => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <div className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => setSelectedAreas([])}>
+                                        <input type="checkbox" checked={selectedAreas.length === 0} readOnly className="rounded border-gray-300 text-blue-600" />
+                                        <span>Todas</span>
+                                    </div>
+                                    {['CRI', 'Capital Solutions'].filter(name => name.toLowerCase().includes(areaSearchTerm.toLowerCase())).map(name => (
+                                        <div key={name} className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => {
+                                            setSelectedAreas(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+                                        }}>
+                                            <input type="checkbox" checked={selectedAreas.includes(name)} readOnly className="rounded border-gray-300 text-blue-600" />
+                                            <span>{name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Analista</label>
-                        <select value={selectedAnalyst} onChange={e => setSelectedAnalyst(e.target.value)} className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2">
-                            {analysts.map(name => <option key={name} value={name}>{name}</option>)}
-                        </select>
+                        <div className="relative" ref={analystDropdownRef}>
+                            <div 
+                                className="w-full rounded-md border border-gray-300 shadow-sm bg-white px-3 py-2 text-left cursor-pointer text-sm"
+                                onClick={() => setIsAnalystDropdownOpen(!isAnalystDropdownOpen)}
+                            >
+                                {selectedAnalysts.length === 0 ? 'Todos' : `${selectedAnalysts.length} selecionados`}
+                            </div>
+                            {isAnalystDropdownOpen && (
+                                <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-sm ring-1 ring-black ring-opacity-5 overflow-auto">
+                                    <div className="px-2 py-2 sticky top-0 bg-white border-b border-gray-100">
+                                        <input 
+                                            type="text" placeholder="Buscar analista..." 
+                                            className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
+                                            value={analystSearchTerm} onChange={e => setAnalystSearchTerm(e.target.value)} onClick={e => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <div className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => setSelectedAnalysts([])}>
+                                        <input type="checkbox" checked={selectedAnalysts.length === 0} readOnly className="rounded border-gray-300 text-blue-600" />
+                                        <span>Todos</span>
+                                    </div>
+                                    {analysts.filter(name => name !== 'Todos' && name.toLowerCase().includes(analystSearchTerm.toLowerCase())).map(name => (
+                                        <div key={name} className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => {
+                                            setSelectedAnalysts(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+                                        }}>
+                                            <input type="checkbox" checked={selectedAnalysts.includes(name)} readOnly className="rounded border-gray-300 text-blue-600" />
+                                            <span>{name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Operação</label>
-                        <select value={selectedOperationId} onChange={e => setSelectedOperationId(e.target.value)} className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2">
-                            <option value="Todos">Todas</option>
-                            {operations.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
-                        </select>
+                        <div className="relative" ref={operationDropdownRef}>
+                            <div 
+                                className="w-full rounded-md border border-gray-300 shadow-sm bg-white px-3 py-2 text-left cursor-pointer text-sm"
+                                onClick={() => setIsOperationDropdownOpen(!isOperationDropdownOpen)}
+                            >
+                                {selectedOperationIds.length === 0 ? 'Todas' : `${selectedOperationIds.length} selecionadas`}
+                            </div>
+                            {isOperationDropdownOpen && (
+                                <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-sm ring-1 ring-black ring-opacity-5 overflow-auto">
+                                    <div className="px-2 py-2 sticky top-0 bg-white border-b border-gray-100">
+                                        <input 
+                                            type="text" placeholder="Buscar operação..." 
+                                            className="w-full border border-gray-300 rounded-md px-2 py-1 text-xs"
+                                            value={operationSearchTerm} onChange={e => setOperationSearchTerm(e.target.value)} onClick={e => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <div className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => setSelectedOperationIds([])}>
+                                        <input type="checkbox" checked={selectedOperationIds.length === 0} readOnly className="rounded border-gray-300 text-blue-600" />
+                                        <span>Todas</span>
+                                    </div>
+                                    {operations.filter(op => op.name.toLowerCase().includes(operationSearchTerm.toLowerCase())).map(op => (
+                                        <div key={op.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => {
+                                            setSelectedOperationIds(prev => prev.includes(op.id) ? prev.filter(id => id !== op.id) : [...prev, op.id]);
+                                        }}>
+                                            <input type="checkbox" checked={selectedOperationIds.includes(op.id)} readOnly className="rounded border-gray-300 text-blue-600" />
+                                            <span>{op.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Tipo de Tarefa</label>
-                        <div className="relative" ref={dropdownRef}>
+                        <div className="relative" ref={ruleDropdownRef}>
                             <div 
                                 className="w-full rounded-md border border-gray-300 shadow-sm bg-white px-3 py-2 text-left cursor-pointer text-sm"
                                 onClick={() => setIsRuleDropdownOpen(!isRuleDropdownOpen)}
