@@ -4,7 +4,9 @@ import type { Task, Operation, Event, Rating, Sentiment } from '../types';
 import { ratingOptions, Sentiment as SentimentEnum } from '../types';
 import Modal from './Modal';
 import { Label, Input, Select } from './UI';
-import MDEditor from '@uiw/react-md-editor';
+// @ts-ignore
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 interface ReviewCompletionFormProps {
   task: Task;
@@ -82,26 +84,27 @@ const ReviewCompletionForm: React.FC<ReviewCompletionFormProps> = ({ task, opera
             </div>
         </div>
 
-        <div data-color-mode="light">
+        <div>
             <Label htmlFor="review-description">Resumo da Revisão</Label>
-            <MDEditor 
-                id="review-description" 
-                value={description} 
-                onChange={val => setDescription(val || '')} 
-                height={200}
-                previewOptions={{
-                    rehypePlugins: []
-                }}
-            />
+            <div className="bg-white">
+                <ReactQuill 
+                    theme="snow" 
+                    value={description} 
+                    onChange={setDescription} 
+                    className="h-48 mb-12"
+                />
+            </div>
         </div>
-        <div data-color-mode="light">
+        <div>
             <Label htmlFor="review-next-steps">Próximos Passos</Label>
-            <MDEditor 
-                id="review-next-steps" 
-                value={nextSteps} 
-                onChange={val => setNextSteps(val || '')} 
-                height={150}
-            />
+            <div className="bg-white">
+                <ReactQuill 
+                    theme="snow" 
+                    value={nextSteps} 
+                    onChange={setNextSteps} 
+                    className="h-32 mb-12"
+                />
+            </div>
         </div>
 
         <div className="flex justify-end gap-4 pt-4 border-t">
