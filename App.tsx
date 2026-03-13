@@ -29,6 +29,8 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{message: string; type: 'success' | 'error'} | null>(null);
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [pendingUpdates, setPendingUpdates] = useState<Record<number, Operation>>({});
 
   const showToast = (message: string, type: 'success' | 'error') => {
       setToast({ message, type });
@@ -171,6 +173,12 @@ const App: React.FC = () => {
       prev.map(op => op.id === updatedOperation.id ? updatedOperation : op)
     );
     
+    if (isBatchMode) {
+        setPendingUpdates(prev => ({ ...prev, [updatedOperation.id]: updatedOperation }));
+        showToast('Alteração registrada localmente (Modo em Lote).', 'success');
+        return;
+    }
+
     setIsSyncing(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/operations/${updatedOperation.id}`, {
@@ -310,6 +318,54 @@ const App: React.FC = () => {
     }
   };
   
+  const handleToggleBatchMode = () => {
+      if (isBatchMode && Object.keys(pendingUpdates).length > 0) {
+          showToast('Salve ou descarte as alterações antes de sair do modo em lote.', 'error');
+          return;
+      }
+      setIsBatchMode(!isBatchMode);
+  };
+
+  const handleDiscardBatch = () => {
+      setPendingUpdates({});
+      fetchOperations(); // Reload to discard local changes
+      showToast('Alterações locais descartadas.', 'success');
+  };
+
+  const handleSaveBatch = async () => {
+      const opsToSave = Object.values(pendingUpdates) as Operation[];
+      if (opsToSave.length === 0) {
+          showToast('Nenhuma alteração pendente.', 'success');
+          return;
+      }
+      
+      setIsSyncing(true);
+      let hasError = false;
+      for (const op of opsToSave) {
+          try {
+              const response = await fetch(`${API_BASE_URL}/api/operations/${op.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(op),
+                  credentials: 'include'
+              });
+              if (!response.ok) throw new Error('Falha');
+              const returnedOperation = await response.json() as Operation;
+              setOperations(prev => prev.map(o => o.id === returnedOperation.id ? returnedOperation : o));
+          } catch (error) {
+              console.error(error);
+              hasError = true;
+          }
+      }
+      setIsSyncing(false);
+      if (hasError) {
+          showToast('Algumas alterações falharam. Verifique.', 'error');
+      } else {
+          showToast('Todas as alterações salvas com sucesso!', 'success');
+          setPendingUpdates({});
+      }
+  };
+
   const selectedOperation = useMemo(() => {
     return operations.find(op => op.id === selectedOperationId) || null;
   }, [operations, selectedOperationId]);
@@ -447,6 +503,7 @@ const App: React.FC = () => {
                 operations={filteredOperations}
                 onUpdateOperation={handleUpdateOperation}
                 onCompleteReview={(task) => setReviewModalState({ isOpen: true, task })}
+                onSelectOperation={(id) => handleNavigate(Page.DETAIL, id)}
                 apiUrl={API_BASE_URL}
                 showToast={showToast}
             />;
@@ -493,6 +550,11 @@ const App: React.FC = () => {
         onNavigate={handleNavigate}
         onSyncRules={handleSyncRules}
         selectedArea={selectedArea}
+        isBatchMode={isBatchMode}
+        onToggleBatchMode={handleToggleBatchMode}
+        onSaveBatch={handleSaveBatch}
+        onDiscardBatch={handleDiscardBatch}
+        pendingBatchCount={Object.keys(pendingUpdates).length}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white shadow-sm z-10">
