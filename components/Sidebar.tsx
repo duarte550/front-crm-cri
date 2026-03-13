@@ -11,9 +11,14 @@ interface SidebarProps {
   onNavigate: (page: Page, operationId?: number) => void;
   onSyncRules: () => void;
   selectedArea: Area | 'Mixed';
+  isBatchMode: boolean;
+  onToggleBatchMode: () => void;
+  onSaveBatch: () => void;
+  onDiscardBatch: () => void;
+  pendingBatchCount: number;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ operations, currentPage, selectedOperationId, onNavigate, onSyncRules, selectedArea }) => {
+const Sidebar: React.FC<SidebarProps> = ({ operations, currentPage, selectedOperationId, onNavigate, onSyncRules, selectedArea, isBatchMode, onToggleBatchMode, onSaveBatch, onDiscardBatch, pendingBatchCount }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [collapsedAreas, setCollapsedAreas] = useState<Record<string, boolean>>({});
 
@@ -179,7 +184,43 @@ const Sidebar: React.FC<SidebarProps> = ({ operations, currentPage, selectedOper
           )}
         </div>
 
-        <div className="p-3 border-t border-gray-800 bg-gray-900/50">
+        <div className="p-3 border-t border-gray-800 bg-gray-900/50 space-y-3">
+          <div className="bg-gray-800/50 rounded-lg p-2 border border-gray-700/50">
+            <div className="flex items-center justify-between px-1 mb-2">
+              <span className="text-xs font-medium text-gray-300">Modo Edição em Lote</span>
+              <button 
+                onClick={onToggleBatchMode}
+                className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${isBatchMode ? 'bg-blue-500' : 'bg-gray-600'}`}
+              >
+                <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isBatchMode ? 'translate-x-4' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            
+            {isBatchMode && (
+              <div className="flex flex-col gap-2 pt-2 border-t border-gray-700/50">
+                <div className="text-[10px] text-gray-400 text-center font-medium">
+                  {pendingBatchCount} alteração(ões) pendente(s)
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={onSaveBatch}
+                    disabled={pendingBatchCount === 0}
+                    className="flex-1 py-1.5 bg-green-600/90 text-white text-xs font-medium rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Salvar
+                  </button>
+                  <button
+                    onClick={onDiscardBatch}
+                    disabled={pendingBatchCount === 0}
+                    className="flex-1 py-1.5 bg-red-600/90 text-white text-xs font-medium rounded hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Descartar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={onSyncRules}
             className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md text-xs font-medium text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 transition-all border border-blue-500/20"
