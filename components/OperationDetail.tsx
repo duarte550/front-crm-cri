@@ -16,7 +16,7 @@ import OperationForm from './OperationForm';
 interface OperationDetailProps {
   operation: Operation;
   onUpdateOperation: (updatedOperation: Operation) => void;
-  onOpenNewTaskModal: (operationId: number) => void;
+  onOpenNewTaskModal: (operationId?: number) => void;
   onDeleteTask: (task: Task) => void;
   onEditTask: (task: Task, updates: { name: string, dueDate: string }) => void;
 }
@@ -184,6 +184,12 @@ const OperationDetail: React.FC<OperationDetailProps> = ({ operation, onUpdateOp
     };
     
     const handleDownloadEvent = (event: Event) => {
+        const stripHtml = (html: string) => {
+            const tmp = document.createElement("DIV");
+            tmp.innerHTML = html;
+            return tmp.textContent || tmp.innerText || "";
+        };
+
         const content = `
 Título: ${event.title}
 Data: ${new Date(event.date).toLocaleDateString('pt-BR')}
@@ -193,12 +199,12 @@ Registrado por: ${event.registeredBy}
 --------------------
 Descrição:
 --------------------
-${event.description}
+${stripHtml(event.description)}
 
 --------------------
 Próximos Passos:
 --------------------
-${event.nextSteps || 'Nenhum'}
+${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
         `.trim().replace(/^\s+/gm, '');
 
         const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
