@@ -35,6 +35,8 @@ export interface Event {
   completedTaskId?: string;
 }
 
+export type TaskPriority = 'Baixa' | 'Média' | 'Alta';
+
 export interface TaskRule {
   id: number;
   name: string;
@@ -42,6 +44,7 @@ export interface TaskRule {
   startDate: string; // ISO string
   endDate: string; // ISO string
   description: string;
+  priority?: TaskPriority;
 }
 
 export enum TaskStatus {
@@ -57,6 +60,7 @@ export interface Task {
   ruleName: string;
   dueDate: string; // ISO string
   status: TaskStatus;
+  priority?: TaskPriority;
   notes?: string;
 }
 
@@ -152,4 +156,5 @@ export enum Page {
   CREDIT_REVIEWS = 'credit_reviews',
   AUDIT_LOG = 'audit_log',
   WATCHLIST = 'watchlist',
+  ANALYST_HUB = 'analyst_hub',
 }

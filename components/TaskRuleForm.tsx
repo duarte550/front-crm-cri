@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import type { TaskRule } from '../types';
+import type { TaskRule, TaskPriority } from '../types';
 import { Label, Input, Select, Textarea } from './UI';
 
 interface TaskRuleFormProps {
@@ -15,6 +15,7 @@ const TaskRuleForm: React.FC<TaskRuleFormProps> = ({ onClose, onSave, initialDat
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState('');
   const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>('Média');
 
   useEffect(() => {
     if (initialData) {
@@ -22,7 +23,8 @@ const TaskRuleForm: React.FC<TaskRuleFormProps> = ({ onClose, onSave, initialDat
         setFrequency(initialData.frequency);
         setStartDate(new Date(initialData.startDate).toISOString().split('T')[0]);
         setEndDate(new Date(initialData.endDate).toISOString().split('T')[0]);
-        setDescription(initialData.description);
+        setDescription(initialData.description || '');
+        setPriority(initialData.priority || 'Média');
     }
   }, [initialData]);
 
@@ -34,15 +36,26 @@ const TaskRuleForm: React.FC<TaskRuleFormProps> = ({ onClose, onSave, initialDat
       startDate: new Date(startDate + 'T12:00:00').toISOString(),
       endDate: endDate ? new Date(endDate + 'T12:00:00').toISOString() : new Date(startDate + 'T12:00:00').toISOString(),
       description,
+      priority,
     });
     onClose();
   };
   
   return (
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-            <Label htmlFor="name">Nome da Regra</Label>
-            <Input id="name" type="text" value={name} onChange={e => setName(e.target.value)} required />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <Label htmlFor="name">Nome da Regra</Label>
+                <Input id="name" type="text" value={name} onChange={e => setName(e.target.value)} required />
+            </div>
+            <div>
+                <Label htmlFor="priority">Prioridade</Label>
+                <Select id="priority" value={priority} onChange={e => setPriority(e.target.value as TaskPriority)}>
+                    <option value="Baixa">Baixa</option>
+                    <option value="Média">Média</option>
+                    <option value="Alta">Alta</option>
+                </Select>
+            </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>

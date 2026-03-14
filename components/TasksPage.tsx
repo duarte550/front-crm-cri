@@ -94,6 +94,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
   }, []);
 
   const analysts = useMemo(() => ['Todos', ...new Set(operations.map(op => op.responsibleAnalyst))], [operations]);
+  const areas = useMemo(() => [...new Set(operations.map(op => op.area))], [operations]);
   const operationsById = useMemo(() => new Map(operations.map(op => [op.id, op])), [operations]);
 
   const availableRuleNames = useMemo(() => {
@@ -355,14 +356,24 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
           }
       }
 
+      let priorityColor = 'bg-gray-100 text-gray-600';
+      if (task.priority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
+      if (task.priority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
+      if (task.priority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';
+
       return (
           <div key={task.id} className={`p-4 rounded-xl shadow-sm border border-gray-100 border-l-4 ${statusColor} ${bgColor} flex flex-col gap-3 transition-all hover:shadow-md`}>
               <div className="flex justify-between items-start gap-2">
                   <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                           <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-bold uppercase tracking-wider rounded-md">
                               {operationName}
                           </span>
+                          {task.priority && (
+                              <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${priorityColor}`}>
+                                  {task.priority}
+                              </span>
+                          )}
                       </div>
                       <h4 className="font-bold text-gray-800 leading-tight">{task.ruleName}</h4>
                   </div>
@@ -510,11 +521,16 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
                                         <input type="checkbox" checked={selectedAreas.length === 0} readOnly className="rounded border-gray-300 text-blue-600" />
                                         <span>Todas</span>
                                     </div>
-                                    {['CRI', 'Capital Solutions'].filter(name => name.toLowerCase().includes(areaSearchTerm.toLowerCase())).map(name => (
+                                    {areas.filter(name => name.toLowerCase().includes(areaSearchTerm.toLowerCase())).map(name => (
                                         <div key={name} className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => {
-                                            setSelectedAreas(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+                                            if (selectedAreas.length === 0) {
+                                                setSelectedAreas(areas.filter(n => n !== name));
+                                            } else {
+                                                const newSelected = selectedAreas.includes(name) ? selectedAreas.filter(n => n !== name) : [...selectedAreas, name];
+                                                setSelectedAreas(newSelected.length === areas.length ? [] : newSelected.length === 0 ? ['__NONE__'] : newSelected);
+                                            }
                                         }}>
-                                            <input type="checkbox" checked={selectedAreas.includes(name)} readOnly className="rounded border-gray-300 text-blue-600" />
+                                            <input type="checkbox" checked={selectedAreas.length === 0 || selectedAreas.includes(name)} readOnly className="rounded border-gray-300 text-blue-600" />
                                             <span>{name}</span>
                                         </div>
                                     ))}
@@ -546,9 +562,15 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
                                     </div>
                                     {analysts.filter(name => name !== 'Todos' && name.toLowerCase().includes(analystSearchTerm.toLowerCase())).map(name => (
                                         <div key={name} className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => {
-                                            setSelectedAnalysts(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+                                            const availableAnalysts = analysts.filter(n => n !== 'Todos');
+                                            if (selectedAnalysts.length === 0) {
+                                                setSelectedAnalysts(availableAnalysts.filter(n => n !== name));
+                                            } else {
+                                                const newSelected = selectedAnalysts.includes(name) ? selectedAnalysts.filter(n => n !== name) : [...selectedAnalysts, name];
+                                                setSelectedAnalysts(newSelected.length === availableAnalysts.length ? [] : newSelected.length === 0 ? ['__NONE__'] : newSelected);
+                                            }
                                         }}>
-                                            <input type="checkbox" checked={selectedAnalysts.includes(name)} readOnly className="rounded border-gray-300 text-blue-600" />
+                                            <input type="checkbox" checked={selectedAnalysts.length === 0 || selectedAnalysts.includes(name)} readOnly className="rounded border-gray-300 text-blue-600" />
                                             <span>{name}</span>
                                         </div>
                                     ))}
@@ -578,11 +600,20 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
                                         <input type="checkbox" checked={selectedOperationIds.length === 0} readOnly className="rounded border-gray-300 text-blue-600" />
                                         <span>Todas</span>
                                     </div>
-                                    {operations.filter(op => op.name.toLowerCase().includes(operationSearchTerm.toLowerCase())).map(op => (
+                                    {operations
+                                        .filter(op => selectedAnalysts.length === 0 || selectedAnalysts.includes(op.responsibleAnalyst))
+                                        .filter(op => op.name.toLowerCase().includes(operationSearchTerm.toLowerCase()))
+                                        .map(op => (
                                         <div key={op.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => {
-                                            setSelectedOperationIds(prev => prev.includes(op.id) ? prev.filter(id => id !== op.id) : [...prev, op.id]);
+                                            const availableOps = operations.filter(o => selectedAnalysts.length === 0 || selectedAnalysts.includes(o.responsibleAnalyst));
+                                            if (selectedOperationIds.length === 0) {
+                                                setSelectedOperationIds(availableOps.filter(o => o.id !== op.id).map(o => o.id));
+                                            } else {
+                                                const newSelected = selectedOperationIds.includes(op.id) ? selectedOperationIds.filter(id => id !== op.id) : [...selectedOperationIds, op.id];
+                                                setSelectedOperationIds(newSelected.length === availableOps.length ? [] : newSelected.length === 0 ? [-1] : newSelected);
+                                            }
                                         }}>
-                                            <input type="checkbox" checked={selectedOperationIds.includes(op.id)} readOnly className="rounded border-gray-300 text-blue-600" />
+                                            <input type="checkbox" checked={selectedOperationIds.length === 0 || selectedOperationIds.includes(op.id)} readOnly className="rounded border-gray-300 text-blue-600" />
                                             <span>{op.name}</span>
                                         </div>
                                     ))}
@@ -614,9 +645,14 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
                                     </div>
                                     {availableRuleNames.filter(name => name.toLowerCase().includes(ruleSearchTerm.toLowerCase())).map(name => (
                                         <div key={name} className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2" onClick={() => {
-                                            setSelectedRuleNames(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+                                            if (selectedRuleNames.length === 0) {
+                                                setSelectedRuleNames(availableRuleNames.filter(n => n !== name));
+                                            } else {
+                                                const newSelected = selectedRuleNames.includes(name) ? selectedRuleNames.filter(n => n !== name) : [...selectedRuleNames, name];
+                                                setSelectedRuleNames(newSelected.length === availableRuleNames.length ? [] : newSelected.length === 0 ? ['__NONE__'] : newSelected);
+                                            }
                                         }}>
-                                            <input type="checkbox" checked={selectedRuleNames.includes(name)} readOnly className="rounded border-gray-300 text-blue-600" />
+                                            <input type="checkbox" checked={selectedRuleNames.length === 0 || selectedRuleNames.includes(name)} readOnly className="rounded border-gray-300 text-blue-600" />
                                             <span>{name}</span>
                                         </div>
                                     ))}

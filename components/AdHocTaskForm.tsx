@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import type { TaskRule, Task } from '../types';
+import type { TaskRule, Task, TaskPriority } from '../types';
 import { Label, Input, Textarea } from './UI';
 
 interface AdHocTaskFormProps {
@@ -13,12 +13,14 @@ const AdHocTaskForm: React.FC<AdHocTaskFormProps> = ({ onClose, onSave, initialT
   const [name, setName] = useState('');
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>('Média');
 
   useEffect(() => {
     if (initialTask) {
         setName(initialTask.ruleName);
         setDueDate(new Date(initialTask.dueDate).toISOString().split('T')[0]);
         setDescription('');
+        setPriority(initialTask.priority || 'Média');
     }
   }, [initialTask]);
 
@@ -31,20 +33,34 @@ const AdHocTaskForm: React.FC<AdHocTaskFormProps> = ({ onClose, onSave, initialT
       startDate: isoDate,
       endDate: isoDate,
       description,
+      priority,
     });
     onClose();
   };
   
   return (
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-1">
                 <Label htmlFor="adhoc-name">Nome da Tarefa</Label>
                 <Input id="adhoc-name" type="text" value={name} onChange={e => setName(e.target.value)} required />
             </div>
             <div>
                 <Label htmlFor="adhoc-dueDate">Data de Vencimento</Label>
                 <Input id="adhoc-dueDate" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required />
+            </div>
+            <div>
+                <Label htmlFor="adhoc-priority">Prioridade</Label>
+                <select 
+                    id="adhoc-priority"
+                    value={priority} 
+                    onChange={e => setPriority(e.target.value as TaskPriority)} 
+                    className="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                >
+                    <option value="Baixa">Baixa</option>
+                    <option value="Média">Média</option>
+                    <option value="Alta">Alta</option>
+                </select>
             </div>
         </div>
         <div>

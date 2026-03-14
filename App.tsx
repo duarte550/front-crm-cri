@@ -15,6 +15,7 @@ import WatchlistPage from './components/WatchlistPage';
 import CreditReviewsPage from './components/CreditReviewsPage';
 import ReviewCompletionForm from './components/ReviewCompletionForm';
 import Toast from './components/Toast';
+import AnalystHub from './components/AnalystHub';
 
 const API_BASE_URL = '';
 
@@ -157,12 +158,71 @@ const App: React.FC = () => {
         const savedOperation = await response.json();
         setOperations(prev => [ ...prev, savedOperation ]);
         showToast('Operação adicionada com sucesso!', 'success');
-        handleNavigate(Page.DETAIL, savedOperation.id);
+        return savedOperation;
     } catch (error) {
         console.error("Error adding operation:", error);
         showToast('Erro ao adicionar operação.', 'error');
+        throw error;
     } finally {
         setIsSyncing(false);
+    }
+  };
+
+  const handleAddGeneralTask = async (analystName: string, rule: any) => {
+    setIsSyncing(true);
+    try {
+      let op = operations.find(o => o.name === `Geral - ${analystName}` && o.operationType === 'Geral');
+      let opId = op?.id;
+      
+      if (!opId) {
+        const newOpData = {
+          name: `Geral - ${analystName}`,
+          area: 'Geral',
+          operationType: 'Geral',
+          maturityDate: new Date().toISOString(),
+          responsibleAnalyst: analystName,
+          reviewFrequency: 'Anual',
+          callFrequency: 'Anual',
+          dfFrequency: 'Anual',
+          ratingOperation: 'A4',
+          ratingGroup: 'A4',
+          watchlist: 'Verde',
+          segmento: 'Geral',
+          covenants: {},
+          defaultMonitoring: {},
+          projects: [],
+          guarantees: [],
+          taskRules: [],
+          events: [],
+          ratingHistory: []
+        };
+        const response = await fetch(`${API_BASE_URL}/api/operations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newOpData),
+            credentials: 'include'
+        });
+        if (!response.ok) throw new Error('Falha ao criar operação geral');
+        const savedOperation = await response.json();
+        setOperations(prev => [ ...prev, savedOperation ]);
+        opId = savedOperation.id;
+        op = savedOperation;
+      }
+      
+      if (op) {
+          const updatedOp = {
+              ...op,
+              taskRules: [...(op.taskRules || []), { ...rule, id: Date.now() }]
+          };
+          await handleUpdateOperation(updatedOp);
+          showToast('Tarefa geral adicionada com sucesso!', 'success');
+      }
+      
+    } catch (error) {
+      console.error("Error adding general task:", error);
+      showToast('Erro ao adicionar tarefa geral.', 'error');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -466,7 +526,7 @@ const App: React.FC = () => {
                         onNavigate={handleNavigate}
                     />
                     <OverviewDashboard
-                        operations={filteredOperations}
+                        operations={filteredOperations.filter(op => op.operationType !== 'Geral')}
                         onSelectOperation={(id) => handleNavigate(Page.DETAIL, id)}
                         onAddOperation={handleAddOperation}
                         onOpenNewTaskModal={openNewTaskModal}
@@ -501,7 +561,7 @@ const App: React.FC = () => {
             />;
         case Page.CREDIT_REVIEWS:
             return <CreditReviewsPage
-                operations={filteredOperations}
+                operations={filteredOperations.filter(op => op.operationType !== 'Geral')}
                 onUpdateOperation={handleUpdateOperation}
                 onCompleteReview={(task) => setReviewModalState({ isOpen: true, task })}
                 onSelectOperation={(id) => handleNavigate(Page.DETAIL, id)}
@@ -512,12 +572,24 @@ const App: React.FC = () => {
             return <AuditLogPage apiUrl={API_BASE_URL} />;
         case Page.WATCHLIST:
             return <WatchlistPage 
-                operations={filteredOperations}
+                operations={filteredOperations.filter(op => op.operationType !== 'Geral')}
                 onUpdateOperation={handleUpdateOperation}
+            />;
+        case Page.ANALYST_HUB:
+            return <AnalystHub
+                operations={operations}
+                allTasks={allTasks}
+                onUpdateOperation={handleUpdateOperation}
+                onNavigate={handleNavigate}
+                onOpenNewTaskModal={openNewTaskModal}
+                onDeleteTask={handleDeleteTask}
+                onEditTask={handleEditTask}
+                apiUrl={API_BASE_URL}
+                showToast={showToast}
             />;
         default:
              return <OverviewDashboard
-                operations={filteredOperations}
+                operations={filteredOperations.filter(op => op.operationType !== 'Geral')}
                 onSelectOperation={(id) => handleNavigate(Page.DETAIL, id)}
                 onAddOperation={handleAddOperation}
                 onOpenNewTaskModal={openNewTaskModal}
@@ -535,6 +607,7 @@ const App: React.FC = () => {
         onClose={closeNewTaskModal}
         operations={operations}
         onUpdateOperation={handleUpdateOperation}
+        onAddGeneralTask={handleAddGeneralTask}
         preselectedOperationId={newTaskModalState.operationId}
       />
       {reviewModalState.isOpen && reviewModalState.task && (

@@ -10,6 +10,7 @@ interface NewTaskModalProps {
   onClose: () => void;
   operations: Operation[];
   onUpdateOperation: (updatedOperation: Operation) => void;
+  onAddGeneralTask?: (analystName: string, rule: Omit<TaskRule, 'id'>) => void;
   preselectedOperationId?: number;
 }
 
@@ -20,16 +21,33 @@ const RATING_TO_POLITICA_FREQUENCY: Record<string, string> = {
     'C1': 'Semestral', 'C2': 'Semestral', 'C3': 'Semestral',
 };
 
-const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, operations, onUpdateOperation, preselectedOperationId }) => {
+const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, operations, onUpdateOperation, onAddGeneralTask, preselectedOperationId }) => {
   const [operationId, setOperationId] = useState<number | null>(null);
   const [formType, setFormType] = useState<'pontual' | 'recorrente'>('pontual');
   const [templateData, setTemplateData] = useState<TaskRule | undefined>(undefined);
+  const [taskMode, setTaskMode] = useState<'operation' | 'general'>('operation');
+  const [selectedAnalyst, setSelectedAnalyst] = useState<string>('');
+
+  const uniqueAnalysts = useMemo(() => {
+    const analysts = new Set<string>();
+    operations.forEach(op => {
+        if (op.responsibleAnalyst) analysts.add(op.responsibleAnalyst);
+    });
+    return Array.from(analysts).sort();
+  }, [operations]);
 
   const selectedOperation = useMemo(() => {
     return operations.find(op => op.id === operationId);
   }, [operationId, operations]);
 
   const handleSaveTaskRule = (rule: Omit<TaskRule, 'id'>) => {
+    if (taskMode === 'general') {
+        if (!selectedAnalyst || !onAddGeneralTask) return;
+        onAddGeneralTask(selectedAnalyst, rule);
+        onClose();
+        return;
+    }
+
     if (!operationId) return;
     const opToUpdate = operations.find(op => op.id === operationId);
     if (opToUpdate) {
@@ -47,18 +65,24 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, operations
           setOperationId(preselectedOperationId ?? null);
           setFormType('pontual'); // Reset to default tab when opening
           setTemplateData(undefined);
+          setTaskMode(preselectedOperationId ? 'operation' : 'operation');
+          setSelectedAnalyst('');
       } else {
           // Delay reset to prevent form disappearing before modal closes
           setTimeout(() => {
               setOperationId(null);
               setTemplateData(undefined);
+              setTaskMode('operation');
+              setSelectedAnalyst('');
           }, 200); 
       }
   }, [isOpen, preselectedOperationId]);
   
-  const title = selectedOperation 
-    ? `Adicionar Tarefa para: ${selectedOperation.name}` 
-    : "Adicionar Nova Tarefa";
+  const title = taskMode === 'general' 
+    ? "Adicionar Tarefa Geral"
+    : selectedOperation 
+        ? `Adicionar Tarefa para: ${selectedOperation.name}` 
+        : "Adicionar Nova Tarefa";
 
   const TabButton: React.FC<{isActive: boolean, onClick: () => void, children: React.ReactNode}> = ({ isActive, onClick, children }) => (
       <button
@@ -129,6 +153,33 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, operations
     <Modal isOpen={isOpen} title={title} onClose={onClose}>
       <div className="space-y-4">
         {!preselectedOperationId && (
+            <div className="mb-4 flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                        type="radio" 
+                        name="taskMode" 
+                        value="operation" 
+                        checked={taskMode === 'operation'} 
+                        onChange={() => setTaskMode('operation')} 
+                        className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Tarefa de Operação</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                        type="radio" 
+                        name="taskMode" 
+                        value="general" 
+                        checked={taskMode === 'general'} 
+                        onChange={() => setTaskMode('general')} 
+                        className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Tarefa Geral (Por Analista)</span>
+                </label>
+            </div>
+        )}
+
+        {!preselectedOperationId && taskMode === 'operation' && (
             <div className="mb-4">
                 <label htmlFor="op-select" className="block text-sm font-medium text-gray-700 mb-1">1. Selecione a Operação</label>
                 <select
@@ -138,12 +189,27 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({ isOpen, onClose, operations
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                     <option value="">-- Por favor, escolha uma operação --</option>
-                    {operations.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
+                    {operations.filter(op => op.operationType !== 'Geral').map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
                 </select>
             </div>
         )}
 
-        {operationId && (
+        {taskMode === 'general' && (
+            <div className="mb-4">
+                <label htmlFor="analyst-select" className="block text-sm font-medium text-gray-700 mb-1">1. Selecione o Analista</label>
+                <select
+                    id="analyst-select"
+                    value={selectedAnalyst}
+                    onChange={e => setSelectedAnalyst(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                    <option value="">-- Por favor, escolha um analista --</option>
+                    {uniqueAnalysts.map(analyst => <option key={analyst} value={analyst}>{analyst}</option>)}
+                </select>
+            </div>
+        )}
+
+        {(operationId || (taskMode === 'general' && selectedAnalyst)) && (
             <div>
                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     {preselectedOperationId ? 'Defina a Tarefa' : '2. Defina a Tarefa'}

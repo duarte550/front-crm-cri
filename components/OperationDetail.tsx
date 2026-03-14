@@ -521,10 +521,23 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
                     </div>
 
                     <div className="space-y-2 max-h-96 overflow-y-auto">
-                       {activeTasks.map(task => (
+                       {activeTasks.map(task => {
+                           let priorityColor = 'bg-gray-100 text-gray-600';
+                           if (task.priority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
+                           if (task.priority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
+                           if (task.priority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';
+
+                           return (
                            <div key={task.id} className={`p-3 rounded-md flex justify-between items-center ${task.status === TaskStatus.OVERDUE ? 'bg-red-50 border-l-4 border-red-500' : 'bg-yellow-50 border-l-4 border-yellow-500'}`}>
                                <div>
-                                   <p className="font-semibold text-gray-800">{task.ruleName}</p>
+                                   <div className="flex items-center gap-2">
+                                       <p className="font-semibold text-gray-800">{task.ruleName}</p>
+                                       {task.priority && (
+                                           <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${priorityColor}`}>
+                                               {task.priority}
+                                           </span>
+                                       )}
+                                   </div>
                                    <p className={`text-sm ${task.status === TaskStatus.OVERDUE ? 'text-red-700' : 'text-yellow-700'}`}>
                                        Vencimento: {new Date(task.dueDate).toLocaleDateString('pt-BR')}
                                    </p>
@@ -541,7 +554,7 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
                                     </button>
                                </div>
                            </div>
-                       ))}
+                       )})}
                         {activeTasks.length === 0 && <p className="text-center text-gray-500 py-4">Nenhuma tarefa pendente para os filtros selecionados.</p>}
                     </div>
                 </div>
@@ -553,10 +566,23 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
                         </button>
                     </div>
                     <div className="space-y-3 max-h-96 overflow-y-auto">
-                        {operation.taskRules.map(rule => (
+                        {operation.taskRules.map(rule => {
+                            let priorityColor = 'bg-gray-100 text-gray-600';
+                            if (rule.priority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
+                            if (rule.priority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
+                            if (rule.priority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';
+
+                            return (
                             <div key={rule.id} className="p-3 bg-gray-50 rounded-md flex justify-between items-center">
                                 <div>
-                                    <p className="font-semibold text-gray-800">{rule.name} <span className="text-xs font-normal text-white bg-blue-500 px-2 py-0.5 rounded-full">{rule.frequency}</span></p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-semibold text-gray-800">{rule.name} <span className="text-xs font-normal text-white bg-blue-500 px-2 py-0.5 rounded-full">{rule.frequency}</span></p>
+                                        {rule.priority && (
+                                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${priorityColor}`}>
+                                                {rule.priority}
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="text-sm text-gray-600">{rule.description}</p>
                                     <p className="text-xs text-gray-400 mt-1">
                                         {new Date(rule.startDate).toLocaleDateString('pt-BR')} até {new Date(rule.endDate).toLocaleDateString('pt-BR')}
@@ -571,7 +597,7 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
                                     </button>
                                 </div>
                             </div>
-                        ))}
+                        )})}
                         {operation.taskRules.length === 0 && <p className="text-center text-gray-500 py-4">Nenhuma regra de tarefa definida.</p>}
                     </div>
                 </div>
@@ -622,10 +648,22 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                     {completedTasks.map(task => {
                         const completionEvent = operation.events.find(e => e.completedTaskId === task.id);
+                        let priorityColor = 'bg-gray-100 text-gray-600';
+                        if (task.priority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
+                        if (task.priority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
+                        if (task.priority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';
+
                         return (
                             <div key={task.id} className="p-3 bg-green-50 rounded-md flex justify-between items-center border-l-4 border-green-500">
                                 <div>
-                                    <p className="font-semibold text-gray-800">{task.ruleName}</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-semibold text-gray-800">{task.ruleName}</p>
+                                        {task.priority && (
+                                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${priorityColor}`}>
+                                                {task.priority}
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="text-sm text-gray-600">
                                         Concluída em: {completionEvent ? new Date(completionEvent.date).toLocaleDateString('pt-BR') : new Date(task.dueDate).toLocaleDateString('pt-BR')}
                                     </p>
