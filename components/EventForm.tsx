@@ -3,8 +3,7 @@ import React, { useState, useEffect } from 'react';
 import type { Event } from '../types';
 import Modal from './Modal';
 import { Label, Input, Select, FormRow } from './UI';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import MDEditor from '@uiw/react-md-editor';
 
 interface EventFormProps {
   onClose: () => void;
@@ -91,27 +90,13 @@ const EventForm: React.FC<EventFormProps> = ({ onClose, onSave, analystName, pre
             <Label htmlFor="title">Título</Label>
             <Input id="title" type="text" value={title} onChange={e => setTitle(e.target.value)} required />
         </div>
-        <div>
+        <div data-color-mode="light">
             <Label htmlFor="description">Descrição</Label>
-            <div className="bg-white">
-                <ReactQuill 
-                    theme="snow" 
-                    value={description} 
-                    onChange={setDescription} 
-                    className="h-48 mb-12"
-                />
-            </div>
+            <MDEditor value={description} onChange={(val) => setDescription(val || '')} height={200} />
         </div>
-        <div>
+        <div data-color-mode="light">
             <Label htmlFor="nextSteps">Próximos Passos</Label>
-            <div className="bg-white">
-                <ReactQuill 
-                    theme="snow" 
-                    value={nextSteps} 
-                    onChange={setNextSteps} 
-                    className="h-32 mb-12"
-                />
-            </div>
+            <MDEditor value={nextSteps} onChange={(val) => setNextSteps(val || '')} height={150} />
         </div>
         <div className="flex justify-end gap-4 pt-4">
           <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancelar</button>

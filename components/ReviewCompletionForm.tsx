@@ -4,8 +4,7 @@ import type { Task, Operation, Event, Rating, Sentiment } from '../types';
 import { ratingOptions, Sentiment as SentimentEnum } from '../types';
 import Modal from './Modal';
 import { Label, Input, Select } from './UI';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import MDEditor from '@uiw/react-md-editor';
 
 interface ReviewCompletionFormProps {
   task: Task;
@@ -83,27 +82,13 @@ const ReviewCompletionForm: React.FC<ReviewCompletionFormProps> = ({ task, opera
             </div>
         </div>
 
-        <div>
+        <div data-color-mode="light">
             <Label htmlFor="review-description">Resumo da Revisão</Label>
-            <div className="bg-white">
-                <ReactQuill 
-                    theme="snow" 
-                    value={description} 
-                    onChange={setDescription} 
-                    className="h-48 mb-12"
-                />
-            </div>
+            <MDEditor value={description} onChange={(val) => setDescription(val || '')} height={200} />
         </div>
-        <div>
+        <div data-color-mode="light">
             <Label htmlFor="review-next-steps">Próximos Passos</Label>
-            <div className="bg-white">
-                <ReactQuill 
-                    theme="snow" 
-                    value={nextSteps} 
-                    onChange={setNextSteps} 
-                    className="h-32 mb-12"
-                />
-            </div>
+            <MDEditor value={nextSteps} onChange={(val) => setNextSteps(val || '')} height={150} />
         </div>
 
         <div className="flex justify-end gap-4 pt-4 border-t">

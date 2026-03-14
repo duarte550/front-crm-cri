@@ -3,8 +3,7 @@ import React, { useState } from 'react';
 import type { Operation, Event, Rating, Sentiment } from '../types';
 import { ratingOptions, WatchlistStatus, Sentiment as SentimentEnum } from '../types';
 import Modal from './Modal';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import MDEditor from '@uiw/react-md-editor';
 
 interface WatchlistChangeFormProps {
   operation: Operation;
@@ -90,18 +89,14 @@ const WatchlistChangeForm: React.FC<WatchlistChangeFormProps> = ({ operation, on
             </div>
         </div>
 
-        <div>
+        <div data-color-mode="light">
             <Label htmlFor="change-description">Descrição / Motivo da Alteração</Label>
-            <div className="bg-white rounded-md border border-gray-300 overflow-hidden">
-                <ReactQuill theme="snow" value={description} onChange={setDescription} className="h-48 mb-12" />
-            </div>
+            <MDEditor value={description} onChange={(val) => setDescription(val || '')} height={200} />
         </div>
         
-        <div>
+        <div data-color-mode="light">
             <Label htmlFor="change-next-steps">Próximos Passos</Label>
-            <div className="bg-white rounded-md border border-gray-300 overflow-hidden">
-                <ReactQuill theme="snow" value={nextSteps} onChange={setNextSteps} className="h-32 mb-12" />
-            </div>
+            <MDEditor value={nextSteps} onChange={(val) => setNextSteps(val || '')} height={150} />
         </div>
 
         <div className="flex justify-end gap-4 pt-4">
