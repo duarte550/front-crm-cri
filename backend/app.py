@@ -244,7 +244,15 @@ def manage_operations_collection():
                 cursor.execute(f"SELECT * FROM cri_cra_dev.crm.task_rules WHERE operation_id IN ({placeholders})", op_ids)
                 for row in cursor.fetchall():
                     rule_db = format_row(row, cursor)
-                    operations_map[row.operation_id]['taskRules'].append({ 'id': rule_db.get('id'), 'name': rule_db.get('name'), 'frequency': rule_db.get('frequency'), 'startDate': rule_db.get('start_date').isoformat() if rule_db.get('start_date') else None, 'endDate': rule_db.get('end_date').isoformat() if rule_db.get('end_date') else None, 'description': rule_db.get('description') })
+                    operations_map[row.operation_id]['taskRules'].append({ 
+                        'id': rule_db.get('id'), 
+                        'name': rule_db.get('name'), 
+                        'frequency': rule_db.get('frequency'), 
+                        'startDate': rule_db.get('start_date').isoformat() if rule_db.get('start_date') else None, 
+                        'endDate': rule_db.get('end_date').isoformat() if rule_db.get('end_date') else None, 
+                        'description': rule_db.get('description'),
+                        'priority': rule_db.get('priority')
+                    })
 
                 cursor.execute(f"SELECT * FROM cri_cra_dev.crm.rating_history WHERE operation_id IN ({placeholders}) ORDER BY date DESC", op_ids)
                 for row in cursor.fetchall():

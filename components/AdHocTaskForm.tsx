@@ -48,14 +48,14 @@ const AdHocTaskForm: React.FC<AdHocTaskFormProps> = ({ onClose, onSave, initialT
   
   return (
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-1">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2">
                 <Label htmlFor="adhoc-name">Nome da Tarefa</Label>
                 <Input id="adhoc-name" type="text" value={name} onChange={e => setName(e.target.value)} required />
             </div>
-            <div>
+            <div className="md:col-span-1">
                 <div className="flex justify-between items-center mb-1">
-                    <Label htmlFor="adhoc-dueDate">Data de Vencimento</Label>
+                    <Label htmlFor="adhoc-dueDate" className="mb-0">Vencimento</Label>
                     <div className="flex items-center gap-1">
                         <input 
                             type="checkbox" 
@@ -77,13 +77,13 @@ const AdHocTaskForm: React.FC<AdHocTaskFormProps> = ({ onClose, onSave, initialT
                     className={noDeadline ? 'opacity-50' : ''}
                 />
             </div>
-            <div>
+            <div className="md:col-span-1">
                 <Label htmlFor="adhoc-priority">Prioridade</Label>
                 <select 
                     id="adhoc-priority"
                     value={priority} 
                     onChange={e => setPriority(e.target.value as TaskPriority)} 
-                    className="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    className="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 py-2 text-sm"
                 >
                     <option value="Baixa">Baixa</option>
                     <option value="Média">Média</option>

@@ -60,12 +60,22 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
 
   const daysInMonth = useMemo(() => {
     const days = [];
-    for (let i = 0; i < firstDayOfMonth.getDay(); i++) {
+    const firstDay = firstDayOfMonth.getDay();
+    for (let i = 0; i < firstDay; i++) {
       days.push(null);
     }
     for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
       days.push(new Date(currentDate.getFullYear(), currentDate.getMonth(), day));
     }
+    
+    // Fill the rest of the last week to ensure the grid is complete and has consistent borders
+    const remaining = 7 - (days.length % 7);
+    if (remaining < 7) {
+      for (let i = 0; i < remaining; i++) {
+        days.push(null);
+      }
+    }
+    
     return days;
   }, [currentDate, firstDayOfMonth, lastDayOfMonth]);
 
@@ -195,13 +205,22 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
                         const { task, operationName, analyst } = item;
                         const isCompleted = task.status === TaskStatus.COMPLETED;
                         const isOverdue = task.status === TaskStatus.OVERDUE;
+                        const operation = operations.find(op => op.id === task.operationId);
+                        const rulePriority = task.priority || operation?.taskRules?.find(r => r.id === task.ruleId)?.priority;
+                        
                         const colorClass = isCompleted ? 'bg-gray-100 text-gray-500 border-gray-200' : getAnalystColor(analyst);
                         
+                        let priorityColor = '';
+                        if (rulePriority === 'Urgente') priorityColor = 'border-l-4 border-l-purple-500';
+                        else if (rulePriority === 'Alta') priorityColor = 'border-l-4 border-l-red-500';
+                        else if (rulePriority === 'Média') priorityColor = 'border-l-4 border-l-yellow-500';
+                        else if (rulePriority === 'Baixa') priorityColor = 'border-l-4 border-l-green-500';
+
                         return (
                           <div 
                             key={`task-${task.id}`} 
                             onClick={(e) => { e.stopPropagation(); setPopoverTask({task, operationName, analyst}); }}
-                            className={`px-2 py-1.5 rounded-md text-xs font-medium cursor-pointer border shadow-sm transition-transform hover:scale-[1.02] ${isOverdue ? 'bg-red-50 text-red-700 border-red-200' : colorClass} ${isCompleted ? 'opacity-70' : ''}`}
+                            className={`px-2 py-1.5 rounded-md text-xs font-medium cursor-pointer border shadow-sm transition-transform hover:scale-[1.02] ${isOverdue ? 'bg-red-50 text-red-700 border-red-200' : colorClass} ${isCompleted ? 'opacity-70' : ''} ${priorityColor}`}
                           >
                             <div className={`truncate font-bold ${isCompleted ? 'line-through' : ''}`}>{task.ruleName}</div>
                             <div className="truncate opacity-80 text-[10px]">{operationName}</div>
@@ -270,12 +289,27 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
                     {(tasksByDay.get(selectedDay.getDate()) || []).map(({ task, operationName, analyst }) => {
                       const isCompleted = task.status === TaskStatus.COMPLETED;
                       const isOverdue = task.status === TaskStatus.OVERDUE;
+                      const operation = operations.find(op => op.id === task.operationId);
+                      const rulePriority = task.priority || operation?.taskRules?.find(r => r.id === task.ruleId)?.priority;
+                      
                       const colorClass = isCompleted ? 'bg-gray-100 text-gray-500 border-gray-200' : getAnalystColor(analyst);
 
                       return (
                         <div key={task.id} className={`flex items-center justify-between p-4 rounded-lg border shadow-sm ${isOverdue ? 'bg-red-50 border-red-200' : colorClass} ${isCompleted ? 'opacity-70' : ''}`}>
                           <div className="flex-1">
-                            <h4 className={`font-bold text-sm ${isCompleted ? 'line-through' : ''}`}>{task.ruleName}</h4>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className={`font-bold text-sm ${isCompleted ? 'line-through' : ''}`}>{task.ruleName}</h4>
+                              {rulePriority && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                  rulePriority === 'Urgente' ? 'bg-purple-100 text-purple-700' :
+                                  rulePriority === 'Alta' ? 'bg-red-100 text-red-700' :
+                                  rulePriority === 'Média' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-green-100 text-green-700'
+                                }`}>
+                                  {rulePriority}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs opacity-80 mt-1">{operationName}</p>
                             <div className="flex items-center gap-4 mt-2 text-xs font-medium opacity-80">
                               <span className="flex items-center gap-1">
@@ -345,7 +379,24 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
           <div ref={popoverRef} className="bg-white rounded-xl shadow-2xl border border-gray-100 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className={`px-4 py-3 border-b ${popoverTask.task.status === TaskStatus.OVERDUE ? 'bg-red-50 border-red-100' : popoverTask.task.status === TaskStatus.COMPLETED ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-100'}`}>
               <div className="flex justify-between items-start">
-                <h4 className={`font-bold text-gray-900 text-lg pr-4 ${popoverTask.task.status === TaskStatus.COMPLETED ? 'line-through text-gray-500' : ''}`}>{popoverTask.task.ruleName}</h4>
+                <div>
+                  <h4 className={`font-bold text-gray-900 text-lg pr-4 ${popoverTask.task.status === TaskStatus.COMPLETED ? 'line-through text-gray-500' : ''}`}>{popoverTask.task.ruleName}</h4>
+                  {(() => {
+                    const op = operations.find(o => o.id === popoverTask.task.operationId);
+                    const priority = popoverTask.task.priority || op?.taskRules?.find(r => r.id === popoverTask.task.ruleId)?.priority;
+                    if (!priority) return null;
+                    return (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase mt-1 inline-block ${
+                        priority === 'Urgente' ? 'bg-purple-100 text-purple-700' :
+                        priority === 'Alta' ? 'bg-red-100 text-red-700' :
+                        priority === 'Média' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {priority}
+                      </span>
+                    );
+                  })()}
+                </div>
                 <button onClick={() => setPopoverTask(null)} className="text-gray-400 hover:text-gray-600">&times;</button>
               </div>
               <p className="text-sm font-medium text-gray-600 mt-1">{popoverTask.operationName}</p>

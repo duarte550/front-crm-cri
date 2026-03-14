@@ -45,14 +45,14 @@ const TaskRuleForm: React.FC<TaskRuleFormProps> = ({ onClose, onSave, initialDat
   
   return (
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-3">
                 <Label htmlFor="name">Nome da Regra</Label>
                 <Input id="name" type="text" value={name} onChange={e => setName(e.target.value)} required />
             </div>
-            <div>
+            <div className="md:col-span-1">
                 <Label htmlFor="priority">Prioridade</Label>
-                <Select id="priority" value={priority} onChange={e => setPriority(e.target.value as TaskPriority)}>
+                <Select id="priority" value={priority} onChange={e => setPriority(e.target.value as TaskPriority)} className="py-2 text-sm">
                     <option value="Baixa">Baixa</option>
                     <option value="Média">Média</option>
                     <option value="Alta">Alta</option>

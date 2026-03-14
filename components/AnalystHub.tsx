@@ -52,6 +52,7 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
   const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
   const [reviewTaskToComplete, setReviewTaskToComplete] = useState<Task | null>(null);
   const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
+  const [selectedEventForDetails, setSelectedEventForDetails] = useState<(Event & { operationName: string }) | null>(null);
 
   const handleOpenEventForm = (operation: Operation) => {
     setSelectedOperationForAction(operation);
@@ -254,9 +255,37 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
   };
 
   const analystTasks = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const twoMonthsFromNow = new Date(today);
+    twoMonthsFromNow.setMonth(today.getMonth() + 2);
+
     return allTasks.filter(task => {
       const op = operations.find(o => o.id === task.operationId);
-      return op?.responsibleAnalyst === selectedAnalyst;
+      if (op?.responsibleAnalyst !== selectedAnalyst) return false;
+      
+      // Always show overdue tasks
+      if (task.status === TaskStatus.OVERDUE) return true;
+      
+      // For completed tasks, maybe we only want recent ones? 
+      // But let's stick to the "pending" request mostly.
+      // If it's completed, it's already "history". 
+      // The user said "não precisa mostrar todas as tarefas pendentes de todo o histórico".
+      
+      if (task.status === TaskStatus.COMPLETED) {
+        // Show completed tasks from the last 30 days for context
+        if (!task.dueDate) return false;
+        const dueDate = new Date(task.dueDate);
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        return dueDate >= thirtyDaysAgo;
+      }
+
+      // For pending tasks:
+      if (!task.dueDate) return true; // Tasks without deadline are always "foco"
+      
+      const dueDate = new Date(task.dueDate);
+      return dueDate <= twoMonthsFromNow;
     });
   }, [allTasks, operations, selectedAnalyst]);
 
@@ -764,7 +793,7 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
               )}
 
               {taskViewMode === 'calendar' && (
-                <div className="h-[600px] bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="min-h-[600px] bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <AnalystCalendar 
                     tasks={analystTasks} 
                     operations={operations} 
@@ -845,15 +874,15 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
                         </div>
                         <p className="text-xs text-blue-600 font-medium mb-2 cursor-pointer hover:underline" onClick={() => onNavigate(Page.DETAIL, event.operationId)}>{event.operationName}</p>
                         <div className="relative">
-                          <p className={`text-sm text-gray-600 ${expandedEventId === event.id ? '' : 'line-clamp-2'}`}>
+                          <p className="text-sm text-gray-600 line-clamp-2">
                             {event.description}
                           </p>
                           {event.description && event.description.length > 100 && (
                             <button 
-                              onClick={() => setExpandedEventId(expandedEventId === event.id ? null : event.id)}
+                              onClick={() => setSelectedEventForDetails(event)}
                               className="text-xs text-blue-600 hover:text-blue-800 font-medium mt-1"
                             >
-                              {expandedEventId === event.id ? 'Ver menos' : 'Ver mais'}
+                              Ver mais
                             </button>
                           )}
                         </div>
@@ -1024,6 +1053,37 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
                 className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
               >
                 Deletar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {selectedEventForDetails && (
+        <Modal
+          isOpen={true}
+          onClose={() => setSelectedEventForDetails(null)}
+          title={selectedEventForDetails.title}
+        >
+          <div className="space-y-4">
+            <div className="flex justify-between items-center text-sm text-gray-500 border-b pb-2">
+              <span className="font-medium text-blue-600">{selectedEventForDetails.operationName}</span>
+              <span>{new Date(selectedEventForDetails.date).toLocaleDateString('pt-BR')}</span>
+            </div>
+            <div className="prose prose-sm max-w-none text-gray-700">
+              <p className="whitespace-pre-wrap">{selectedEventForDetails.description}</p>
+            </div>
+            {selectedEventForDetails.nextSteps && (
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                <h4 className="text-xs font-bold text-blue-800 uppercase mb-1">Próximos Passos</h4>
+                <p className="text-sm text-blue-900">{selectedEventForDetails.nextSteps}</p>
+              </div>
+            )}
+            <div className="flex justify-end pt-4">
+              <button
+                onClick={() => setSelectedEventForDetails(null)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 font-medium"
+              >
+                Fechar
               </button>
             </div>
           </div>
