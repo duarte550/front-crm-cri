@@ -356,10 +356,13 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
           }
       }
 
+      const rulePriority = task.priority || op?.taskRules?.find(r => r.id === task.ruleId)?.priority;
+
       let priorityColor = 'bg-gray-100 text-gray-600';
-      if (task.priority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
-      if (task.priority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
-      if (task.priority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';
+      if (rulePriority === 'Urgente') priorityColor = 'bg-purple-100 text-purple-700';
+      if (rulePriority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
+      if (rulePriority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
+      if (rulePriority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';
 
       return (
           <div key={task.id} className={`p-4 rounded-xl shadow-sm border border-gray-100 border-l-4 ${statusColor} ${bgColor} flex flex-col gap-3 transition-all hover:shadow-md`}>
@@ -369,9 +372,9 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
                           <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-bold uppercase tracking-wider rounded-md">
                               {operationName}
                           </span>
-                          {task.priority && (
+                          {rulePriority && (
                               <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${priorityColor}`}>
-                                  {task.priority}
+                                  {rulePriority}
                               </span>
                           )}
                       </div>

@@ -78,7 +78,7 @@ def generate_tasks_for_rule(operation, rule, task_exceptions):
             'ruleName': rule['name'],
             'dueDate': due_date.isoformat() + "T00:00:00",
             'status': status,
-            'priority': rule.get('priority', 'Média')
+            'priority': rule.get('priority') or 'Média'
         })
         return tasks
 
@@ -111,7 +111,7 @@ def generate_tasks_for_rule(operation, rule, task_exceptions):
                 'ruleName': rule['name'],
                 'dueDate': due_date.isoformat() + "T00:00:00",
                 'status': status,
-                'priority': rule.get('priority', 'Média')
+                'priority': rule.get('priority') or 'Média'
             })
         
         next_date = get_next_date(current_date, rule['frequency'])

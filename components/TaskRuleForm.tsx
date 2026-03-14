@@ -54,6 +54,7 @@ const TaskRuleForm: React.FC<TaskRuleFormProps> = ({ onClose, onSave, initialDat
                     <option value="Baixa">Baixa</option>
                     <option value="Média">Média</option>
                     <option value="Alta">Alta</option>
+                    <option value="Urgente">Urgente</option>
                 </Select>
             </div>
         </div>

@@ -522,19 +522,21 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
 
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                        {activeTasks.map(task => {
+                           const rulePriority = task.priority || operation.taskRules?.find(r => r.id === task.ruleId)?.priority;
                            let priorityColor = 'bg-gray-100 text-gray-600';
-                           if (task.priority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
-                           if (task.priority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
-                           if (task.priority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';
+                           if (rulePriority === 'Urgente') priorityColor = 'bg-purple-100 text-purple-700';
+                           if (rulePriority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
+                           if (rulePriority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
+                           if (rulePriority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';
 
                            return (
                            <div key={task.id} className={`p-3 rounded-md flex justify-between items-center ${task.status === TaskStatus.OVERDUE ? 'bg-red-50 border-l-4 border-red-500' : 'bg-yellow-50 border-l-4 border-yellow-500'}`}>
                                <div>
                                    <div className="flex items-center gap-2">
                                        <p className="font-semibold text-gray-800">{task.ruleName}</p>
-                                       {task.priority && (
+                                       {rulePriority && (
                                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${priorityColor}`}>
-                                               {task.priority}
+                                               {rulePriority}
                                            </span>
                                        )}
                                    </div>
@@ -648,19 +650,21 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                     {completedTasks.map(task => {
                         const completionEvent = operation.events.find(e => e.completedTaskId === task.id);
+                        const rulePriority = task.priority || operation.taskRules?.find(r => r.id === task.ruleId)?.priority;
                         let priorityColor = 'bg-gray-100 text-gray-600';
-                        if (task.priority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
-                        if (task.priority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
-                        if (task.priority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';
+                        if (rulePriority === 'Urgente') priorityColor = 'bg-purple-100 text-purple-700';
+                        if (rulePriority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
+                        if (rulePriority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
+                        if (rulePriority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';
 
                         return (
                             <div key={task.id} className="p-3 bg-green-50 rounded-md flex justify-between items-center border-l-4 border-green-500">
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <p className="font-semibold text-gray-800">{task.ruleName}</p>
-                                        {task.priority && (
+                                        {rulePriority && (
                                             <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${priorityColor}`}>
-                                                {task.priority}
+                                                {rulePriority}
                                             </span>
                                         )}
                                     </div>

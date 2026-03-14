@@ -35,7 +35,7 @@ export interface Event {
   completedTaskId?: string;
 }
 
-export type TaskPriority = 'Baixa' | 'Média' | 'Alta';
+export type TaskPriority = 'Baixa' | 'Média' | 'Alta' | 'Urgente';
 
 export interface TaskRule {
   id: number;

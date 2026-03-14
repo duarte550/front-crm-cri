@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import type { Operation, Task, Event } from '../types';
 import { Page, TaskStatus, TaskPriority } from '../types';
-import { CheckCircleIcon, WarningIcon, CalendarIcon, PencilIcon, TrashIcon, PlusCircleIcon } from './icons/Icons';
+import { CheckCircleIcon, WarningIcon, CalendarIcon, PencilIcon, TrashIcon, PlusCircleIcon, ViewListIcon, ViewBoardsIcon } from './icons/Icons';
 import EventForm from './EventForm';
 import WatchlistChangeForm from './WatchlistChangeForm';
 import AdHocTaskForm from './AdHocTaskForm';
 import Modal from './Modal';
+import ReviewCompletionForm from './ReviewCompletionForm';
+import AnalystCalendar from './AnalystCalendar';
 import type { WatchlistStatus, Rating, Sentiment } from '../types';
 
 interface AnalystHubProps {
@@ -43,9 +45,13 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
   const [selectedAnalyst, setSelectedAnalyst] = useState<string>(analysts[0] || '');
   const [isEventFormOpen, setIsEventFormOpen] = useState(false);
   const [isWatchlistFormOpen, setIsWatchlistFormOpen] = useState(false);
+  const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
   const [selectedOperationForAction, setSelectedOperationForAction] = useState<Operation | null>(null);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
+  const [reviewTaskToComplete, setReviewTaskToComplete] = useState<Task | null>(null);
+  const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
 
   const handleOpenEventForm = (operation: Operation) => {
     setSelectedOperationForAction(operation);
@@ -60,14 +66,26 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
   const handleSaveEvent = async (eventData: Omit<Event, 'id'>) => {
     if (!selectedOperationForAction) return;
     try {
+      let updatedTasks = selectedOperationForAction.tasks;
+      let eventToSave = { ...eventData, id: Date.now() } as Event;
+
+      if (taskToComplete) {
+        eventToSave.completedTaskId = taskToComplete.id;
+        updatedTasks = updatedTasks.map(t => 
+          t.id === taskToComplete.id ? { ...t, status: TaskStatus.COMPLETED } : t
+        );
+      }
+
       const updatedOperation = {
         ...selectedOperationForAction,
-        events: [...selectedOperationForAction.events, { ...eventData, id: Date.now() } as Event]
+        tasks: updatedTasks,
+        events: [...selectedOperationForAction.events, eventToSave]
       };
       await onUpdateOperation(updatedOperation);
       showToast('Evento registrado com sucesso!', 'success');
       setIsEventFormOpen(false);
       setSelectedOperationForAction(null);
+      setTaskToComplete(null);
     } catch (error) {
       console.error(error);
       showToast('Erro ao registrar evento.', 'error');
@@ -110,13 +128,68 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
   };
 
   const [portfolioFilter, setPortfolioFilter] = useState('');
-  const [sortColumn, setSortColumn] = useState<keyof Operation>('name');
+  const [riskRadarWatchlistFilter, setRiskRadarWatchlistFilter] = useState<string>('Todos');
+  const [portfolioWatchlistFilter, setPortfolioWatchlistFilter] = useState<string>('Todos');
+  const [sortColumn, setSortColumn] = useState<keyof Operation>('watchlist');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const handleSaveEditedTask = (rule: any) => {
     if (taskToEdit) {
       onEditTask(taskToEdit, { name: rule.name, dueDate: rule.startDate });
       setTaskToEdit(null);
+    }
+  };
+
+  const handleCompleteTaskClick = (task: Task) => {
+    const op = operations.find(o => o.id === task.operationId);
+    if (!op) return;
+    setSelectedOperationForAction(op);
+    if (task.ruleName === 'Revisão Gerencial' || task.ruleName === 'Revisão Política') {
+      setReviewTaskToComplete(task);
+      setIsReviewFormOpen(true);
+    } else {
+      setTaskToComplete(task);
+      setIsEventFormOpen(true);
+    }
+  };
+
+  const handleSaveReviewCompletion = async (data: { event: Omit<Event, 'id'>, ratingOp: Rating, ratingGroup: Rating, sentiment: Sentiment }) => {
+    if (!selectedOperationForAction || !reviewTaskToComplete) return;
+    try {
+      const newEventId = Date.now();
+      const eventToSave: Event = { ...data.event, id: newEventId, completedTaskId: reviewTaskToComplete.id };
+
+      const newHistoryEntry = {
+        id: Date.now() + 1,
+        date: eventToSave.date,
+        ratingOperation: data.ratingOp,
+        ratingGroup: data.ratingGroup,
+        watchlist: selectedOperationForAction.watchlist,
+        sentiment: data.sentiment,
+        eventId: newEventId,
+      };
+
+      const updatedTasks = selectedOperationForAction.tasks.map(t => 
+        t.id === reviewTaskToComplete.id ? { ...t, status: TaskStatus.COMPLETED } : t
+      );
+
+      const updatedOperation = {
+        ...selectedOperationForAction,
+        ratingOperation: data.ratingOp,
+        ratingGroup: data.ratingGroup,
+        tasks: updatedTasks,
+        events: [...selectedOperationForAction.events, eventToSave],
+        ratingHistory: [...selectedOperationForAction.ratingHistory, newHistoryEntry],
+      };
+
+      await onUpdateOperation(updatedOperation);
+      showToast('Revisão concluída com sucesso!', 'success');
+      setIsReviewFormOpen(false);
+      setReviewTaskToComplete(null);
+      setSelectedOperationForAction(null);
+    } catch (error) {
+      console.error(error);
+      showToast('Erro ao concluir revisão.', 'error');
     }
   };
 
@@ -143,7 +216,20 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
       );
     }
     
+    if (portfolioWatchlistFilter !== 'Todos') {
+      result = result.filter(op => op.watchlist === portfolioWatchlistFilter);
+    }
+    
     return result.sort((a, b) => {
+      if (sortColumn === 'watchlist') {
+        const order = { 'Vermelho': 1, 'Rosa': 2, 'Amarelo': 3, 'Verde': 4 };
+        const aVal = order[a.watchlist as keyof typeof order] || 5;
+        const bVal = order[b.watchlist as keyof typeof order] || 5;
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      }
+
       let aVal: any = a[sortColumn];
       let bVal: any = b[sortColumn];
       
@@ -156,7 +242,7 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [analystOperations, portfolioFilter, sortColumn, sortDirection]);
+  }, [analystOperations, portfolioFilter, portfolioWatchlistFilter, sortColumn, sortDirection]);
 
   const handleSort = (column: keyof Operation) => {
     if (sortColumn === column) {
@@ -175,17 +261,30 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
   }, [allTasks, operations, selectedAnalyst]);
 
   // Metrics
-  const overdueTasks = analystTasks.filter(t => t.status === 'Atrasada');
+  const overdueTasks = useMemo(() => analystTasks.filter(t => t.status === 'Atrasada'), [analystTasks]);
   
-  const today = new Date();
-  const endOfWeek = new Date(today);
-  endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
-  const tasksOfTheWeek = analystTasks.filter(t => {
-    const dueDate = new Date(t.dueDate);
-    return dueDate >= today && dueDate <= endOfWeek && t.status !== 'Concluída';
-  });
+  const tasksOfTheWeek = useMemo(() => {
+    const today = new Date();
+    const endOfWeek = new Date(today);
+    endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+    return analystTasks.filter(t => {
+      const dueDate = new Date(t.dueDate);
+      return dueDate >= today && dueDate <= endOfWeek && t.status !== 'Concluída';
+    });
+  }, [analystTasks]);
 
-  const watchlistAlerts = analystOperations.filter(op => op.watchlist === 'Amarelo' || op.watchlist === 'Vermelho' || op.watchlist === 'Rosa');
+  const watchlistAlerts = useMemo(() => {
+    let alerts = analystOperations.filter(op => op.watchlist === 'Vermelho' || op.watchlist === 'Rosa');
+    if (riskRadarWatchlistFilter !== 'Todos') {
+      alerts = alerts.filter(op => op.watchlist === riskRadarWatchlistFilter);
+    }
+    return alerts.sort((a, b) => {
+      const order = { 'Vermelho': 1, 'Rosa': 2, 'Amarelo': 3, 'Verde': 4 };
+      const aVal = order[a.watchlist as keyof typeof order] || 5;
+      const bVal = order[b.watchlist as keyof typeof order] || 5;
+      return aVal - bVal;
+    });
+  }, [analystOperations, riskRadarWatchlistFilter]);
 
   // Recent Activity
   const recentEvents = useMemo(() => {
@@ -200,6 +299,7 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
 
   // Task Filters
   const [taskFilter, setTaskFilter] = useState<'Todas' | 'Pendentes' | 'Concluídas' | 'Atrasadas'>('Pendentes');
+  const [taskViewMode, setTaskViewMode] = useState<'list' | 'kanban' | 'calendar'>('list');
 
   const filteredTasks = useMemo(() => {
     let filtered = analystTasks;
@@ -209,13 +309,177 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
     return filtered.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   }, [analystTasks, taskFilter]);
 
+  const kanbanColumns = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const cols = {
+        overdue: [] as Task[],
+        today: [] as Task[],
+        next7Days: [] as Task[],
+        future: [] as Task[],
+        completedRecent: [] as Task[]
+    };
+
+    analystTasks.forEach(task => {
+        const dueDate = new Date(task.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        const diffTime = dueDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (task.status === TaskStatus.COMPLETED) {
+            // Find completion event
+            const op = operations.find(o => o.id === task.operationId);
+            const completionEvent = op?.events?.find(e => e.completedTaskId === task.id);
+            if (completionEvent) {
+                const completedDate = new Date(completionEvent.date);
+                completedDate.setHours(0, 0, 0, 0);
+                const diffCompleted = today.getTime() - completedDate.getTime();
+                const diffCompletedDays = Math.ceil(diffCompleted / (1000 * 60 * 60 * 24));
+                if (diffCompletedDays <= 7) {
+                    cols.completedRecent.push(task);
+                }
+            } else {
+                // Fallback to due date if no event found
+                if (diffDays >= -7 && diffDays <= 0) {
+                    cols.completedRecent.push(task);
+                }
+            }
+        } else if (task.status === TaskStatus.OVERDUE) {
+            cols.overdue.push(task);
+        } else if (diffDays === 0) {
+            cols.today.push(task);
+        } else if (diffDays > 0 && diffDays <= 7) {
+            cols.next7Days.push(task);
+        } else if (diffDays > 7) {
+            cols.future.push(task);
+        }
+    });
+
+    return cols;
+  }, [analystTasks, operations]);
+
   const getPriorityColor = (priority?: TaskPriority) => {
     switch (priority) {
+      case 'Urgente': return 'text-purple-600 bg-purple-100';
       case 'Alta': return 'text-red-600 bg-red-100';
       case 'Média': return 'text-yellow-600 bg-yellow-100';
       case 'Baixa': return 'text-green-600 bg-green-100';
       default: return 'text-gray-600 bg-gray-100';
     }
+  };
+
+  const renderTaskCard = (task: Task, isKanban: boolean = false) => {
+    const op = operations.find(o => o.id === task.operationId);
+    const isCompleted = task.status === TaskStatus.COMPLETED;
+    
+    if (isKanban) {
+      let statusColor = 'border-gray-200';
+      let bgColor = 'bg-white';
+      if (task.status === TaskStatus.OVERDUE) {
+          statusColor = 'border-red-300';
+          bgColor = 'bg-red-50/30';
+      } else if (task.status === TaskStatus.COMPLETED) {
+          statusColor = 'border-green-300';
+          bgColor = 'bg-green-50/30';
+      }
+
+      const rulePriority = task.priority || op?.taskRules?.find(r => r.id === task.ruleId)?.priority;
+
+      let priorityColor = 'bg-gray-100 text-gray-600';
+      if (rulePriority === 'Urgente') priorityColor = 'bg-purple-100 text-purple-700';
+      if (rulePriority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
+      if (rulePriority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
+      if (rulePriority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';
+
+      return (
+          <div key={task.id} className={`p-4 rounded-xl shadow-sm border border-gray-100 border-l-4 ${statusColor} ${bgColor} flex flex-col gap-3 transition-all hover:shadow-md`}>
+              <div className="flex justify-between items-start gap-2">
+                  <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-bold uppercase tracking-wider rounded-md">
+                              {op?.name}
+                          </span>
+                          {rulePriority && (
+                              <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${priorityColor}`}>
+                                  {rulePriority}
+                              </span>
+                          )}
+                      </div>
+                      <h4 className={`font-semibold text-sm ${isCompleted ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                          {task.ruleName}
+                      </h4>
+                      {task.notes && (
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{task.notes}</p>
+                      )}
+                  </div>
+              </div>
+              
+              <div className="flex items-center justify-between mt-2 pt-3 border-t border-gray-100/50">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                      <CalendarIcon className="w-3.5 h-3.5" />
+                      <span className={task.status === TaskStatus.OVERDUE ? 'text-red-600' : ''}>
+                          {new Date(task.dueDate).toLocaleDateString('pt-BR')}
+                      </span>
+                  </div>
+                  
+                  {!isCompleted && (
+                      <div className="flex items-center gap-1">
+                          <button onClick={() => setTaskToEdit(task)} className="text-gray-400 hover:text-blue-600 p-1.5 rounded-full hover:bg-blue-50 transition-colors" title="Editar Tarefa">
+                              <PencilIcon className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setTaskToDelete(task)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50 transition-colors" title="Deletar Tarefa">
+                              <TrashIcon className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleCompleteTaskClick(task)} className="ml-1 flex items-center gap-1 px-2.5 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-medium shadow-sm transition-colors">
+                              <CheckCircleIcon className="w-3.5 h-3.5" /> Concluir
+                          </button>
+                      </div>
+                  )}
+              </div>
+          </div>
+      );
+    }
+
+    return (
+      <div key={task.id} className="p-4 hover:bg-gray-50 transition-colors flex items-start justify-between group">
+        <div className="flex items-start gap-3">
+          <button 
+            onClick={() => handleCompleteTask(task)}
+            className={`mt-1 flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${task.status === 'Concluída' ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-blue-500'}`}
+          >
+            {task.status === 'Concluída' && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+          </button>
+          <div>
+            <p className={`font-medium ${task.status === 'Concluída' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{task.ruleName}</p>
+            <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+              <span className="font-medium text-blue-600 cursor-pointer hover:underline" onClick={() => onNavigate(Page.DETAIL, op?.id)}>{op?.name}</span>
+              <span>•</span>
+              <span className={task.status === 'Atrasada' ? 'text-red-600 font-medium' : ''}>Vence: {new Date(task.dueDate).toLocaleDateString('pt-BR')}</span>
+              {rulePriority && (
+                <>
+                  <span>•</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getPriorityColor(rulePriority)}`}>{rulePriority}</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          {!isCompleted && (
+            <button onClick={() => handleCompleteTaskClick(task)} className="p-1 text-gray-400 hover:text-green-600" title="Concluir">
+              <CheckCircleIcon className="w-4 h-4" />
+            </button>
+          )}
+          <button onClick={() => setTaskToEdit(task)} className="p-1 text-gray-400 hover:text-blue-600" title="Editar">
+            <PencilIcon className="w-4 h-4" />
+          </button>
+          <button onClick={() => setTaskToDelete(task)} className="p-1 text-gray-400 hover:text-red-600" title="Excluir">
+            <TrashIcon className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const getWatchlistColor = (status: string) => {
@@ -333,58 +597,122 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
                 </button>
               </div>
             </div>
-            <div className="p-4 border-b border-gray-100 flex gap-2">
-              {['Todas', 'Pendentes', 'Concluídas', 'Atrasadas'].map(filter => (
-                <button
-                  key={filter}
-                  onClick={() => setTaskFilter(filter as any)}
-                  className={`px-3 py-1 text-sm rounded-full transition-colors ${taskFilter === filter ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <div className="flex gap-2">
+                {['Todas', 'Pendentes', 'Concluídas', 'Atrasadas'].map(filter => (
+                  <button
+                    key={filter}
+                    onClick={() => setTaskFilter(filter as any)}
+                    className={`px-3 py-1 text-sm rounded-full transition-colors ${taskFilter === filter ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  >
+                    {filter}
+                  </button>
+                ))}
+              </div>
+              <div className="flex bg-gray-100 p-1 rounded-lg">
+                <button 
+                  onClick={() => setTaskViewMode('list')}
+                  className={`p-1.5 rounded-md transition-colors ${taskViewMode === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                  title="Visualização em Lista"
                 >
-                  {filter}
+                  <ViewListIcon className="w-4 h-4" />
                 </button>
-              ))}
+                <button 
+                  onClick={() => setTaskViewMode('kanban')}
+                  className={`p-1.5 rounded-md transition-colors ${taskViewMode === 'kanban' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                  title="Visualização em Quadro"
+                >
+                  <ViewBoardsIcon className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => setTaskViewMode('calendar')}
+                  className={`p-1.5 rounded-md transition-colors ${taskViewMode === 'calendar' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                  title="Visualização em Calendário"
+                >
+                  <CalendarIcon className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
-              {filteredTasks.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">Nenhuma tarefa encontrada.</div>
-              ) : (
-                filteredTasks.map(task => {
-                  const op = operations.find(o => o.id === task.operationId);
-                  return (
-                    <div key={task.id} className="p-4 hover:bg-gray-50 transition-colors flex items-start justify-between group">
-                      <div className="flex items-start gap-3">
-                        <button 
-                          onClick={() => handleCompleteTask(task)}
-                          className={`mt-1 flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${task.status === 'Concluída' ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-blue-500'}`}
-                        >
-                          {task.status === 'Concluída' && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
-                        </button>
-                        <div>
-                          <p className={`font-medium ${task.status === 'Concluída' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{task.ruleName}</p>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                            <span className="font-medium text-blue-600 cursor-pointer hover:underline" onClick={() => onNavigate(Page.DETAIL, op?.id)}>{op?.name}</span>
-                            <span>•</span>
-                            <span className={task.status === 'Atrasada' ? 'text-red-600 font-medium' : ''}>Vence: {new Date(task.dueDate).toLocaleDateString('pt-BR')}</span>
-                            {task.priority && (
-                              <>
-                                <span>•</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getPriorityColor(task.priority)}`}>{task.priority}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
+            
+            <div className="p-4">
+              {taskViewMode === 'list' && (
+                <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto custom-scrollbar border border-gray-100 rounded-xl">
+                  {filteredTasks.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">Nenhuma tarefa encontrada.</div>
+                  ) : (
+                    filteredTasks.map(task => renderTaskCard(task, false))
+                  )}
+                </div>
+              )}
+
+              {taskViewMode === 'kanban' && (
+                <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar items-start">
+                  <div className="w-80 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-200 flex flex-col max-h-[600px]">
+                      <div className="p-3 border-b border-gray-200 bg-red-50/50 rounded-t-xl">
+                          <h3 className="font-bold text-red-800 text-sm flex justify-between items-center">
+                              Atrasadas <span className="bg-red-200 text-red-800 px-2 py-0.5 rounded-full text-xs">{kanbanColumns.overdue.length}</span>
+                          </h3>
                       </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setTaskToEdit(task)} className="p-1 text-gray-400 hover:text-blue-600" title="Editar">
-                          <PencilIcon className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => setTaskToDelete(task)} className="p-1 text-gray-400 hover:text-red-600" title="Excluir">
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
+                      <div className="p-3 overflow-y-auto flex-1 space-y-3 custom-scrollbar">
+                          {kanbanColumns.overdue.map(t => renderTaskCard(t, true))}
                       </div>
-                    </div>
-                  );
-                })
+                  </div>
+
+                  <div className="w-80 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-200 flex flex-col max-h-[600px]">
+                      <div className="p-3 border-b border-gray-200 bg-blue-50/50 rounded-t-xl">
+                          <h3 className="font-bold text-blue-800 text-sm flex justify-between items-center">
+                              Para Hoje <span className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full text-xs">{kanbanColumns.today.length}</span>
+                          </h3>
+                      </div>
+                      <div className="p-3 overflow-y-auto flex-1 space-y-3 custom-scrollbar">
+                          {kanbanColumns.today.map(t => renderTaskCard(t, true))}
+                      </div>
+                  </div>
+
+                  <div className="w-80 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-200 flex flex-col max-h-[600px]">
+                      <div className="p-3 border-b border-gray-200 bg-yellow-50/50 rounded-t-xl">
+                          <h3 className="font-bold text-yellow-800 text-sm flex justify-between items-center">
+                              Próximos 7 Dias <span className="bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full text-xs">{kanbanColumns.next7Days.length}</span>
+                          </h3>
+                      </div>
+                      <div className="p-3 overflow-y-auto flex-1 space-y-3 custom-scrollbar">
+                          {kanbanColumns.next7Days.map(t => renderTaskCard(t, true))}
+                      </div>
+                  </div>
+
+                  <div className="w-80 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-200 flex flex-col max-h-[600px]">
+                      <div className="p-3 border-b border-gray-200 bg-purple-50/50 rounded-t-xl">
+                          <h3 className="font-bold text-purple-800 text-sm flex justify-between items-center">
+                              Futuras <span className="bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full text-xs">{kanbanColumns.future.length}</span>
+                          </h3>
+                      </div>
+                      <div className="p-3 overflow-y-auto flex-1 space-y-3 custom-scrollbar">
+                          {kanbanColumns.future.map(t => renderTaskCard(t, true))}
+                      </div>
+                  </div>
+
+                  <div className="w-80 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-200 flex flex-col max-h-[600px]">
+                      <div className="p-3 border-b border-gray-200 bg-green-50/50 rounded-t-xl">
+                          <h3 className="font-bold text-green-800 text-sm flex justify-between items-center">
+                              Concluídas (7 dias) <span className="bg-green-200 text-green-800 px-2 py-0.5 rounded-full text-xs">{kanbanColumns.completedRecent.length}</span>
+                          </h3>
+                      </div>
+                      <div className="p-3 overflow-y-auto flex-1 space-y-3 custom-scrollbar">
+                          {kanbanColumns.completedRecent.map(t => renderTaskCard(t, true))}
+                      </div>
+                  </div>
+                </div>
+              )}
+
+              {taskViewMode === 'calendar' && (
+                <div className="h-[600px] bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <AnalystCalendar 
+                    tasks={analystTasks} 
+                    operations={operations} 
+                    onCompleteTask={handleCompleteTaskClick}
+                    onOpenNewTaskModal={onOpenNewTaskModal}
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -396,6 +724,17 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
                 <WarningIcon className="w-5 h-5 text-red-500" />
                 Radar de Risco
               </h2>
+              <div className="flex items-center gap-2">
+                <select
+                  value={riskRadarWatchlistFilter}
+                  onChange={(e) => setRiskRadarWatchlistFilter(e.target.value)}
+                  className="text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="Todos">Todos os Alertas</option>
+                  <option value="Vermelho">Vermelho</option>
+                  <option value="Rosa">Rosa</option>
+                </select>
+              </div>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
               {watchlistAlerts.length === 0 ? (
@@ -446,7 +785,19 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
                           <span className="text-xs text-gray-500">{new Date(event.date).toLocaleDateString('pt-BR')}</span>
                         </div>
                         <p className="text-xs text-blue-600 font-medium mb-2 cursor-pointer hover:underline" onClick={() => onNavigate(Page.DETAIL, event.operationId)}>{event.operationName}</p>
-                        <p className="text-sm text-gray-600 line-clamp-2">{event.description}</p>
+                        <div className="relative">
+                          <p className={`text-sm text-gray-600 ${expandedEventId === event.id ? '' : 'line-clamp-2'}`}>
+                            {event.description}
+                          </p>
+                          {event.description && event.description.length > 100 && (
+                            <button 
+                              onClick={() => setExpandedEventId(expandedEventId === event.id ? null : event.id)}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium mt-1"
+                            >
+                              {expandedEventId === event.id ? 'Ver menos' : 'Ver mais'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
@@ -464,17 +815,30 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
             <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
             Meu Portfólio
           </h2>
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Filtrar operações..."
-              value={portfolioFilter}
-              onChange={(e) => setPortfolioFilter(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
-            <svg className="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+          <div className="flex items-center gap-4">
+            <select
+              value={portfolioWatchlistFilter}
+              onChange={(e) => setPortfolioWatchlistFilter(e.target.value)}
+              className="text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="Todos">Todos os Faróis</option>
+              <option value="Verde">Verde</option>
+              <option value="Amarelo">Amarelo</option>
+              <option value="Rosa">Rosa</option>
+              <option value="Vermelho">Vermelho</option>
+            </select>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Filtrar operações..."
+                value={portfolioFilter}
+                onChange={(e) => setPortfolioFilter(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+              <svg className="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -541,9 +905,23 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
           onClose={() => {
             setIsEventFormOpen(false);
             setSelectedOperationForAction(null);
+            setTaskToComplete(null);
           }}
           onSave={handleSaveEvent}
           analystName={selectedAnalyst}
+          prefilledTitle={taskToComplete ? `Conclusão: ${taskToComplete.ruleName}` : undefined}
+        />
+      )}
+      {isReviewFormOpen && selectedOperationForAction && reviewTaskToComplete && (
+        <ReviewCompletionForm
+          task={reviewTaskToComplete}
+          operation={selectedOperationForAction}
+          onClose={() => {
+            setIsReviewFormOpen(false);
+            setReviewTaskToComplete(null);
+            setSelectedOperationForAction(null);
+          }}
+          onSave={handleSaveReviewCompletion}
         />
       )}
       {isWatchlistFormOpen && selectedOperationForAction && (
