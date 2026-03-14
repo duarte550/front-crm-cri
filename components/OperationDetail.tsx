@@ -570,6 +570,7 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
                     <div className="space-y-3 max-h-96 overflow-y-auto">
                         {operation.taskRules.map(rule => {
                             let priorityColor = 'bg-gray-100 text-gray-600';
+                            if (rule.priority === 'Urgente') priorityColor = 'bg-purple-100 text-purple-700';
                             if (rule.priority === 'Alta') priorityColor = 'bg-red-100 text-red-700';
                             if (rule.priority === 'Média') priorityColor = 'bg-yellow-100 text-yellow-700';
                             if (rule.priority === 'Baixa') priorityColor = 'bg-green-100 text-green-700';

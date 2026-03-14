@@ -273,6 +273,14 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
     });
   }, [analystTasks]);
 
+  const taskProgress = useMemo(() => {
+    const total = analystTasks.length;
+    const completed = analystTasks.filter(t => t.status === 'Concluída').length;
+    const overdue = analystTasks.filter(t => t.status === 'Atrasada').length;
+    const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+    return { total, completed, overdue, percent };
+  }, [analystTasks]);
+
   const watchlistAlerts = useMemo(() => {
     let alerts = analystOperations.filter(op => op.watchlist === 'Vermelho' || op.watchlist === 'Rosa');
     if (riskRadarWatchlistFilter !== 'Todos') {
@@ -372,6 +380,7 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
   const renderTaskCard = (task: Task, isKanban: boolean = false) => {
     const op = operations.find(o => o.id === task.operationId);
     const isCompleted = task.status === TaskStatus.COMPLETED;
+    const rulePriority = task.priority || op?.taskRules?.find(r => r.id === task.ruleId)?.priority;
     
     if (isKanban) {
       let statusColor = 'border-gray-200';
@@ -383,8 +392,6 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
           statusColor = 'border-green-300';
           bgColor = 'bg-green-50/30';
       }
-
-      const rulePriority = task.priority || op?.taskRules?.find(r => r.id === task.ruleId)?.priority;
 
       let priorityColor = 'bg-gray-100 text-gray-600';
       if (rulePriority === 'Urgente') priorityColor = 'bg-purple-100 text-purple-700';
@@ -597,6 +604,38 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Progress Bar */}
+            <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100">
+              <div className="flex justify-between items-end mb-2">
+                <div>
+                  <span className="text-sm font-bold text-gray-700">Progresso Geral</span>
+                  <span className="text-xs text-gray-500 ml-2">({taskProgress.completed} de {taskProgress.total} concluídas)</span>
+                </div>
+                <span className="text-lg font-black text-blue-600">{taskProgress.percent}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mb-3 overflow-hidden">
+                <div 
+                  className="bg-blue-600 h-full rounded-full transition-all duration-500" 
+                  style={{ width: `${taskProgress.percent}%` }}
+                ></div>
+              </div>
+              <div className="flex gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                  <span className="text-[10px] font-medium text-gray-600 uppercase tracking-wider">{taskProgress.overdue} Atrasadas</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-400"></div>
+                  <span className="text-[10px] font-medium text-gray-600 uppercase tracking-wider">{taskProgress.total - taskProgress.completed - taskProgress.overdue} Pendentes</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+                  <span className="text-[10px] font-medium text-gray-600 uppercase tracking-wider">{taskProgress.completed} Concluídas</span>
+                </div>
+              </div>
+            </div>
+
             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
               <div className="flex gap-2">
                 {['Todas', 'Pendentes', 'Concluídas', 'Atrasadas'].map(filter => (
