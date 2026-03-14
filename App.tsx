@@ -331,7 +331,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleEditTask = async (task: Task, updates: { name: string, dueDate: string }) => {
+  const handleEditTask = async (task: Task, updates: { name: string, dueDate: string | null }) => {
     const originalOperations = [...operations];
     setOperations(prevOps => prevOps.map(op => {
         if (op.id === task.operationId) {
@@ -339,9 +339,9 @@ const App: React.FC = () => {
             const newAdHocRule: TaskRule = {
                 id: Date.now(),
                 name: updates.name,
-                frequency: 'Pontual',
-                startDate: new Date(updates.dueDate + 'T12:00:00').toISOString(),
-                endDate: new Date(updates.dueDate + 'T12:00:00').toISOString(),
+                frequency: updates.dueDate ? 'Pontual' : 'Sem Prazo',
+                startDate: updates.dueDate ? new Date(updates.dueDate + 'T12:00:00').toISOString() : null,
+                endDate: updates.dueDate ? new Date(updates.dueDate + 'T12:00:00').toISOString() : null,
                 description: `Tarefa editada a partir da tarefa original: ${task.ruleName} (ID: ${task.id})`,
             };
             return {
@@ -449,7 +449,9 @@ const App: React.FC = () => {
       
       // Mês/Ano original para o título (ex: mar/25)
       const monthNames = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-      const formattedOriginalDate = `${monthNames[originalTaskDate.getUTCMonth()]}/${originalTaskDate.getUTCFullYear().toString().slice(-2)}`;
+      const formattedOriginalDate = clickedTask.dueDate 
+          ? `${monthNames[new Date(clickedTask.dueDate).getUTCMonth()]}/${new Date(clickedTask.dueDate).getUTCFullYear().toString().slice(-2)}`
+          : 'Sem Prazo';
 
       const baseEventData = {
           date: actualCompletionDate,

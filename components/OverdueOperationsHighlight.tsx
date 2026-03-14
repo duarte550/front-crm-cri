@@ -1,8 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { Operation } from '../types';
 import { Page } from '../types';
-import { WarningIcon } from './icons/Icons';
+import { WarningIcon, ChevronDownIcon, ChevronUpIcon } from './icons/Icons';
 
 interface OverdueOperationsHighlightProps {
   operations: Operation[];
@@ -10,6 +10,8 @@ interface OverdueOperationsHighlightProps {
 }
 
 const OverdueOperationsHighlight: React.FC<OverdueOperationsHighlightProps> = ({ operations, onNavigate }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const overdueOperations = React.useMemo(() => {
     return operations
       .filter(op => op.overdueCount > 0)
@@ -20,26 +22,54 @@ const OverdueOperationsHighlight: React.FC<OverdueOperationsHighlightProps> = ({
     return null;
   }
 
+  const totalOverdue = overdueOperations.reduce((acc, op) => acc + op.overdueCount, 0);
+
   return (
-    <div className="bg-red-50 border-l-4 border-red-500 text-red-800 p-4 rounded-md shadow-md mb-6" role="alert">
-      <div className="flex">
-        <div className="py-1">
-          <WarningIcon className="w-6 h-6 text-red-500 mr-4" />
+    <div className="bg-red-50 border-l-4 border-red-500 text-red-800 rounded-md shadow-sm mb-6 overflow-hidden transition-all duration-300" role="alert">
+      <div 
+        className="p-4 flex items-center justify-between cursor-pointer hover:bg-red-100 transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-red-100 text-red-600 rounded-lg">
+            <WarningIcon className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="font-bold text-red-900">Atenção: {totalOverdue} tarefas atrasadas em {overdueOperations.length} operações</p>
+            {!isExpanded && <p className="text-xs text-red-700">Clique para ver detalhes</p>}
+          </div>
         </div>
-        <div>
-          <p className="font-bold">Atenção: Há operações com tarefas atrasadas!</p>
-          <ul className="mt-2 list-disc list-inside text-sm">
+        <button className="p-1 hover:bg-red-200 rounded-full transition-colors">
+          {isExpanded ? <ChevronUpIcon className="w-5 h-5" /> : <ChevronDownIcon className="w-5 h-5" />}
+        </button>
+      </div>
+
+      {isExpanded && (
+        <div className="px-4 pb-4 pt-0 border-t border-red-200 bg-white/50">
+          <ul className="mt-3 space-y-2">
             {overdueOperations.map(op => (
-              <li key={op.id}>
-                <button onClick={() => onNavigate(Page.DETAIL, op.id)} className="font-semibold hover:underline">
-                  {op.name}
-                </button>
-                : <span className="font-normal"> {op.overdueCount} tarefa(s) atrasada(s).</span>
+              <li key={op.id} className="flex items-center justify-between text-sm p-2 hover:bg-red-50 rounded transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  <span className="font-medium">{op.name}</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-red-600 font-bold">{op.overdueCount} atrasos</span>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNavigate(Page.DETAIL, op.id);
+                    }} 
+                    className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded font-semibold transition-colors"
+                  >
+                    Ver Operação
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         </div>
-      </div>
+      )}
     </div>
   );
 };

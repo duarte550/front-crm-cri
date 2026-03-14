@@ -13,7 +13,7 @@ interface TasksPageProps {
   onUpdateOperation: (updatedOperation: Operation) => void;
   onOpenNewTaskModal: (operationId?: number) => void;
   onDeleteTask: (task: Task) => void;
-  onEditTask: (task: Task, updates: { name: string, dueDate: string }) => void;
+  onEditTask: (task: Task, updates: { name: string, dueDate: string | null }) => void;
 }
 
 const getAnalystColor = (analystName: string) => {
@@ -119,13 +119,19 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
       if (selectedRuleNames.length > 0 && !selectedRuleNames.includes(task.ruleName)) return false;
       
       // Filter by month
-      const dueDate = new Date(task.dueDate);
       const isCompleted = task.status === TaskStatus.COMPLETED;
       
-      let dateToCheck = dueDate;
+      let dateToCheck: Date;
       if (isCompleted) {
           const completionEvent = op.events.find(e => e.completedTaskId === task.id);
-          if (completionEvent) dateToCheck = new Date(completionEvent.date);
+          dateToCheck = completionEvent ? new Date(completionEvent.date) : (task.dueDate ? new Date(task.dueDate) : new Date(0));
+      } else {
+          if (!task.dueDate) {
+              // Evergreen tasks show up in the actual current month
+              const today = new Date();
+              return currentMonth.getFullYear() === today.getFullYear() && currentMonth.getMonth() === today.getMonth();
+          }
+          dateToCheck = new Date(task.dueDate);
       }
       
       if (dateToCheck.getFullYear() !== currentMonth.getFullYear() || dateToCheck.getMonth() !== currentMonth.getMonth()) {
@@ -144,8 +150,8 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
   const pendingTasks = useMemo(() => {
       const tasks = filteredTasks.filter(task => task.status !== TaskStatus.COMPLETED);
       tasks.sort((a, b) => {
-          const dateA = new Date(a.dueDate).getTime();
-          const dateB = new Date(b.dueDate).getTime();
+          const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+          const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
           return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
       });
       return tasks;
@@ -348,7 +354,7 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
           bgColor = 'bg-red-50/30';
       }
 
-      let dateText = `Vencimento: ${new Date(task.dueDate).toLocaleDateString('pt-BR')}`;
+      let dateText = task.dueDate ? `Vencimento: ${new Date(task.dueDate).toLocaleDateString('pt-BR')}` : 'Sem Prazo';
       if (isCompleted && op) {
           const completionEvent = op.events.find(e => e.completedTaskId === task.id);
           if (completionEvent) {
@@ -379,6 +385,12 @@ const TasksPage: React.FC<TasksPageProps> = ({ operations, allTasks, onUpdateOpe
                           )}
                       </div>
                       <h4 className="font-bold text-gray-800 leading-tight">{task.ruleName}</h4>
+                      {task.notes && (
+                          <div 
+                            className="text-[10px] text-gray-500 mt-1 line-clamp-2 prose prose-xs max-w-none" 
+                            dangerouslySetInnerHTML={{ __html: task.notes }} 
+                          />
+                      )}
                   </div>
                   <div 
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${analystColor}`}

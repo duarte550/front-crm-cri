@@ -57,9 +57,29 @@ def generate_tasks_for_rule(operation, rule, task_exceptions):
     
     today = date.today()
 
-    # Skip if rule has no dates
-    if not rule.get('startDate') or not rule.get('endDate'):
+    # Skip if rule has no dates (except for 'Sem Prazo')
+    if rule['frequency'] != 'Sem Prazo' and (not rule.get('startDate') or not rule.get('endDate')):
         return []
+
+    # Handle 'Sem Prazo' tasks
+    if rule['frequency'] == 'Sem Prazo':
+        task_id = f"op{operation['id']}-rule{rule['id']}-nodate"
+        if task_id in task_exceptions:
+            return []
+        
+        status = 'Concluída' if task_id in completed_task_ids else 'Pendente'
+        
+        tasks.append({
+            'id': task_id,
+            'operationId': operation['id'],
+            'ruleId': rule['id'],
+            'ruleName': rule['name'],
+            'dueDate': None,
+            'status': status,
+            'priority': rule.get('priority') or 'Média',
+            'notes': rule.get('description')
+        })
+        return tasks
 
     # Handle one-off 'Pontual' tasks
     if rule['frequency'] == 'Pontual':
@@ -78,7 +98,8 @@ def generate_tasks_for_rule(operation, rule, task_exceptions):
             'ruleName': rule['name'],
             'dueDate': due_date.isoformat() + "T00:00:00",
             'status': status,
-            'priority': rule.get('priority') or 'Média'
+            'priority': rule.get('priority') or 'Média',
+            'notes': rule.get('description')
         })
         return tasks
 
@@ -111,7 +132,8 @@ def generate_tasks_for_rule(operation, rule, task_exceptions):
                 'ruleName': rule['name'],
                 'dueDate': due_date.isoformat() + "T00:00:00",
                 'status': status,
-                'priority': rule.get('priority') or 'Média'
+                'priority': rule.get('priority') or 'Média',
+                'notes': rule.get('description')
             })
         
         next_date = get_next_date(current_date, rule['frequency'])

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import type { Operation, Event, Task, RatingHistoryEntry, Rating, Sentiment, TaskRule } from '../types';
 import { TaskStatus, ratingOptions, WatchlistStatus, Sentiment as SentimentEnum } from '../types';
-import { PlusCircleIcon, CheckCircleIcon, EyeIcon, ArrowUpIcon, ArrowRightIcon, ArrowDownIcon, BellIcon, PencilIcon, TrashIcon, DownloadIcon } from './icons/Icons';
+import { PlusCircleIcon, CheckCircleIcon, EyeIcon, ArrowUpIcon, ArrowRightIcon, ArrowDownIcon, BellIcon, PencilIcon, TrashIcon, DownloadIcon, FileTextIcon } from './icons/Icons';
 import EventForm from './EventForm';
 import WatchlistChangeForm from './WatchlistChangeForm';
 import ReviewCompletionForm from './ReviewCompletionForm';
@@ -18,7 +18,7 @@ interface OperationDetailProps {
   onUpdateOperation: (updatedOperation: Operation) => void;
   onOpenNewTaskModal: (operationId?: number) => void;
   onDeleteTask: (task: Task) => void;
-  onEditTask: (task: Task, updates: { name: string, dueDate: string }) => void;
+  onEditTask: (task: Task, updates: { name: string, dueDate: string | null }) => void;
 }
 
 const InfoCard: React.FC<{ title: string; children: React.ReactNode; highlight?: boolean }> = ({ title, children, highlight = false }) => (
@@ -115,7 +115,11 @@ const OperationDetail: React.FC<OperationDetailProps> = ({ operation, onUpdateOp
                 if (endDate && taskDate > endDate) return false;
                 return true;
             })
-            .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+            .sort((a, b) => {
+                const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+                const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+                return dateA - dateB;
+            });
     }, [tasks, taskStatusFilter, taskDateFilter]);
 
     const completedTasks = useMemo(() => {
@@ -479,6 +483,20 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
                 </div>
             </div>
 
+            {/* Notas / Observações Gerais */}
+            {operation.notes && (
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <FileTextIcon className="w-5 h-5 text-blue-600" />
+                        Notas / Observações Gerais
+                    </h3>
+                    <div 
+                        className="prose prose-sm max-w-none text-gray-600"
+                        dangerouslySetInnerHTML={{ __html: operation.notes }}
+                    />
+                </div>
+            )}
+
             <EventHistory 
                 events={filteredEvents}
                 onAddEvent={() => setIsEventFormOpen(true)}
@@ -541,7 +559,7 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
                                        )}
                                    </div>
                                    <p className={`text-sm ${task.status === TaskStatus.OVERDUE ? 'text-red-700' : 'text-yellow-700'}`}>
-                                       Vencimento: {new Date(task.dueDate).toLocaleDateString('pt-BR')}
+                                       {task.dueDate ? `Vencimento: ${new Date(task.dueDate).toLocaleDateString('pt-BR')}` : 'Sem Prazo'}
                                    </p>
                                </div>
                                <div className="flex items-center gap-2">
@@ -586,7 +604,7 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
                                             </span>
                                         )}
                                     </div>
-                                    <p className="text-sm text-gray-600">{rule.description}</p>
+                                    <div className="text-sm text-gray-600 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: rule.description }} />
                                     <p className="text-xs text-gray-400 mt-1">
                                         {new Date(rule.startDate).toLocaleDateString('pt-BR')} até {new Date(rule.endDate).toLocaleDateString('pt-BR')}
                                     </p>
@@ -670,7 +688,7 @@ ${event.nextSteps ? stripHtml(event.nextSteps) : 'Nenhum'}
                                         )}
                                     </div>
                                     <p className="text-sm text-gray-600">
-                                        Concluída em: {completionEvent ? new Date(completionEvent.date).toLocaleDateString('pt-BR') : new Date(task.dueDate).toLocaleDateString('pt-BR')}
+                                        Concluída em: {completionEvent ? new Date(completionEvent.date).toLocaleDateString('pt-BR') : (task.dueDate ? new Date(task.dueDate).toLocaleDateString('pt-BR') : 'N/A')}
                                     </p>
                                 </div>
                                 {completionEvent && (

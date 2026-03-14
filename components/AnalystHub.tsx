@@ -17,7 +17,7 @@ interface AnalystHubProps {
   onNavigate: (page: Page, operationId?: number) => void;
   onOpenNewTaskModal: (operationId?: number) => void;
   onDeleteTask: (task: Task) => void;
-  onEditTask: (task: Task, updates: { name: string, dueDate: string }) => void;
+  onEditTask: (task: Task, updates: { name: string, dueDate: string | null }) => void;
   apiUrl: string;
   showToast: (message: string, type: 'success' | 'error') => void;
 }
@@ -268,6 +268,7 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
     const endOfWeek = new Date(today);
     endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
     return analystTasks.filter(t => {
+      if (!t.dueDate) return t.status !== 'Concluída';
       const dueDate = new Date(t.dueDate);
       return dueDate >= today && dueDate <= endOfWeek && t.status !== 'Concluída';
     });
@@ -314,7 +315,11 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
     if (taskFilter === 'Pendentes') filtered = filtered.filter(t => t.status === 'Pendente');
     if (taskFilter === 'Concluídas') filtered = filtered.filter(t => t.status === 'Concluída');
     if (taskFilter === 'Atrasadas') filtered = filtered.filter(t => t.status === 'Atrasada');
-    return filtered.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    return filtered.sort((a, b) => {
+      const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+      const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+      return dateA - dateB;
+    });
   }, [analystTasks, taskFilter]);
 
   const kanbanColumns = useMemo(() => {
@@ -330,10 +335,15 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
     };
 
     analystTasks.forEach(task => {
-        const dueDate = new Date(task.dueDate);
-        dueDate.setHours(0, 0, 0, 0);
-        const diffTime = dueDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        let diffDays = 0;
+        let hasDueDate = !!task.dueDate;
+
+        if (hasDueDate) {
+            const dueDate = new Date(task.dueDate!);
+            dueDate.setHours(0, 0, 0, 0);
+            const diffTime = dueDate.getTime() - today.getTime();
+            diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
 
         if (task.status === TaskStatus.COMPLETED) {
             // Find completion event
@@ -349,13 +359,18 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
                 }
             } else {
                 // Fallback to due date if no event found
-                if (diffDays >= -7 && diffDays <= 0) {
+                if (hasDueDate && diffDays >= -7 && diffDays <= 0) {
+                    cols.completedRecent.push(task);
+                } else if (!hasDueDate) {
+                    // If no deadline, we don't know when it was completed without event, 
+                    // but let's assume it's recent if it's in the list (usually filtered by month elsewhere but here it's analystTasks)
                     cols.completedRecent.push(task);
                 }
             }
         } else if (task.status === TaskStatus.OVERDUE) {
             cols.overdue.push(task);
-        } else if (diffDays === 0) {
+        } else if (!hasDueDate || diffDays === 0) {
+            // "Sem Prazo" tasks go to "Hoje" to stay visible
             cols.today.push(task);
         } else if (diffDays > 0 && diffDays <= 7) {
             cols.next7Days.push(task);
@@ -417,7 +432,10 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
                           {task.ruleName}
                       </h4>
                       {task.notes && (
-                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{task.notes}</p>
+                          <div 
+                            className="text-xs text-gray-500 mt-1 line-clamp-2 prose prose-xs max-w-none" 
+                            dangerouslySetInnerHTML={{ __html: task.notes }} 
+                          />
                       )}
                   </div>
               </div>
@@ -426,7 +444,7 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
                   <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
                       <CalendarIcon className="w-3.5 h-3.5" />
                       <span className={task.status === TaskStatus.OVERDUE ? 'text-red-600' : ''}>
-                          {new Date(task.dueDate).toLocaleDateString('pt-BR')}
+                          {task.dueDate ? new Date(task.dueDate).toLocaleDateString('pt-BR') : 'Sem Prazo'}
                       </span>
                   </div>
                   
@@ -462,7 +480,9 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
             <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
               <span className="font-medium text-blue-600 cursor-pointer hover:underline" onClick={() => onNavigate(Page.DETAIL, op?.id)}>{op?.name}</span>
               <span>•</span>
-              <span className={task.status === 'Atrasada' ? 'text-red-600 font-medium' : ''}>Vence: {new Date(task.dueDate).toLocaleDateString('pt-BR')}</span>
+              <span className={task.status === 'Atrasada' ? 'text-red-600 font-medium' : ''}>
+                {task.dueDate ? `Vence: ${new Date(task.dueDate).toLocaleDateString('pt-BR')}` : 'Sem Prazo'}
+              </span>
               {rulePriority && (
                 <>
                   <span>•</span>
@@ -526,7 +546,7 @@ const AnalystHub: React.FC<AnalystHubProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-auto bg-gray-50 p-8">
+    <div className="bg-gray-50">
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>

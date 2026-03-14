@@ -40,9 +40,9 @@ export type TaskPriority = 'Baixa' | 'Média' | 'Alta' | 'Urgente';
 export interface TaskRule {
   id: number;
   name: string;
-  frequency: 'Pontual' | 'Diário' | 'Semanal' | 'Quinzenal' | 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual';
-  startDate: string; // ISO string
-  endDate: string; // ISO string
+  frequency: 'Pontual' | 'Diário' | 'Semanal' | 'Quinzenal' | 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual' | 'Sem Prazo';
+  startDate: string | null; // ISO string
+  endDate: string | null; // ISO string
   description: string;
   priority?: TaskPriority;
 }
@@ -58,7 +58,7 @@ export interface Task {
   operationId: number;
   ruleId: number;
   ruleName: string;
-  dueDate: string; // ISO string
+  dueDate?: string; // ISO string
   status: TaskStatus;
   priority?: TaskPriority;
   notes?: string;

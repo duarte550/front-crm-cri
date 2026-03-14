@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import type { TaskRule, TaskPriority } from '../types';
-import { Label, Input, Select, Textarea } from './UI';
+import { Label, Input, Select } from './UI';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 interface TaskRuleFormProps {
   onClose: () => void;
@@ -82,7 +84,14 @@ const TaskRuleForm: React.FC<TaskRuleFormProps> = ({ onClose, onSave, initialDat
         </div>
         <div>
             <Label htmlFor="description">Descrição</Label>
-            <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={3} />
+            <div className="bg-white rounded-md border border-gray-300 overflow-hidden">
+                <ReactQuill 
+                    theme="snow" 
+                    value={description} 
+                    onChange={setDescription} 
+                    className="h-32 mb-12"
+                />
+            </div>
         </div>
          <div className="flex justify-end gap-4 pt-4">
           <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancelar</button>

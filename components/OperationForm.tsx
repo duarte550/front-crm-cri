@@ -4,6 +4,8 @@ import type { DefaultMonitoring, Rating, Area, Operation } from '../types';
 import { WatchlistStatus, ratingOptions, segmentoOptions, areaOptions } from '../types';
 import Modal from './Modal';
 import { Label, Input, Select, FormRow } from './UI';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 interface OperationFormProps {
   onClose: () => void;
@@ -59,6 +61,7 @@ const OperationForm: React.FC<OperationFormProps> = ({ onClose, onSave, initialD
   const [ratingOperation, setRatingOperation] = useState<Rating>(initialData?.ratingOperation || 'Baa3');
   const [ratingGroup, setRatingGroup] = useState<Rating>(initialData?.ratingGroup || 'Baa1');
   const [watchlist, setWatchlist] = useState<WatchlistStatus>(initialData?.watchlist || WatchlistStatus.VERDE);
+  const [notes, setNotes] = useState(initialData?.notes || '');
 
   const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = event.target;
@@ -84,6 +87,7 @@ const OperationForm: React.FC<OperationFormProps> = ({ onClose, onSave, initialD
       ratingOperation,
       ratingGroup,
       watchlist,
+      notes,
       covenants: initialData?.covenants || { ltv: null, dscr: null }, 
     };
     onSave(newOperationData);
@@ -213,6 +217,18 @@ const OperationForm: React.FC<OperationFormProps> = ({ onClose, onSave, initialD
                 </div>
             </>
          )}
+
+        <div className="mt-6">
+            <Label htmlFor="operation-notes">Notas / Observações Gerais</Label>
+            <div className="bg-white rounded-md border border-gray-300 overflow-hidden">
+                <ReactQuill 
+                    theme="snow" 
+                    value={notes} 
+                    onChange={setNotes} 
+                    className="h-32 mb-12"
+                />
+            </div>
+        </div>
 
         <div className="flex justify-end gap-4 pt-4">
           <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancelar</button>

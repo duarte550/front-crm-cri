@@ -78,6 +78,7 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
       if (!operation) return;
       if (selectedAnalyst !== 'Todos' && operation.responsibleAnalyst !== selectedAnalyst) return;
 
+      if (!task.dueDate) return;
       const dueDate = new Date(task.dueDate);
       if (dueDate.getMonth() === currentDate.getMonth() && dueDate.getFullYear() === currentDate.getFullYear()) {
         const day = dueDate.getDate();
@@ -122,7 +123,7 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
   const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
         <div className="flex items-center gap-4">
           <button onClick={() => changeMonth(-1)} className="p-2 bg-gray-50 text-gray-600 rounded-full hover:bg-gray-100 transition-colors shadow-sm border border-gray-200">&larr;</button>
@@ -354,7 +355,7 @@ const AnalystCalendar: React.FC<AnalystCalendarProps> = ({ tasks, operations, on
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-500">Vencimento:</span>
                 <span className={`font-semibold ${popoverTask.task.status === TaskStatus.OVERDUE ? 'text-red-600' : 'text-gray-800'}`}>
-                  {new Date(popoverTask.task.dueDate).toLocaleDateString('pt-BR')}
+                  {popoverTask.task.dueDate ? new Date(popoverTask.task.dueDate).toLocaleDateString('pt-BR') : 'Sem Prazo'}
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm">
